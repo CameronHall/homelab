@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-cd
+    # This is the Helm chart version (pin it!)
+    targetRevision: 9.4.1
+    helm:
+      releaseName: argocd
+      # Start minimal; add values as you need.
+      values: |
+        # Example: keep it simple to start.
+        # server:
+        #   ingress:
+        #     enabled: false
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
