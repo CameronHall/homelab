@@ -21,7 +21,7 @@ spec:
       values: |
         global:
           domain: argocd.seagull-monster.ts.net
-        config:
+        configs:
           params:
             server.insecure: true
           dex.config: |
