@@ -24,20 +24,21 @@ spec:
         configs:
           params:
             server.insecure: true
-          dex.config: |
-            connectors:
-              - config:
-                  issuer: https://accounts.google.com
-                  clientID: $dex.google.clientID
-                  clientSecret:  $dex.google.clientSecret
-                type: oidc
-                id: google
-                name: Google
+          cm:
+            dex.config: |
+              connectors:
+                - config:
+                    issuer: https://accounts.google.com
+                    clientID: $dex.google.clientID
+                    clientSecret:  $dex.google.clientSecret
+                  type: oidc
+                  id: google
+                  name: Google
           rbac:
-            "policy.csv": |
+            policy.csv: |
               g, $adminEmail, role:admin
-            "policy.default": role.readonly
-            "policy.matchMode": glob
+            policy.default: role.readonly
+            policy.matchMode: glob
             scopes: '[groups, email]'
         server:
           ingress:
