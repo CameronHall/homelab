@@ -22,7 +22,23 @@ spec:
         global:
           domain: argocd.seagull-monster.ts.net
         config:
-          server.insecure: true
+          params:
+            server.insecure: true
+          dex.config: |
+            connectors:
+              - config:
+                  issuer: https://accounts.google.com
+                  clientID: $dex.google.clientID
+                  clientSecret:  $dex.google.clientSecret
+                type: oidc
+                id: google
+                name: Google
+          rbac:
+            "policy.csv": |
+              g, $adminEmail, role:admin
+            "policy.default": role.readonly
+            "policy.matchMode": glob
+            scopes: '[groups, email]'
         server:
           ingress:
             enabled: true
