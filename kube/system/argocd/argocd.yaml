@@ -27,6 +27,9 @@ spec:
           ingress:
             enabled: true
             ingressClassName: tailscale
+            extraTls:
+            - hosts:
+              - argocd.seagull-monster.ts.net
 
   syncPolicy:
     automated:
