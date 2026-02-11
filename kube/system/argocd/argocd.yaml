@@ -19,10 +19,12 @@ spec:
       releaseName: argocd
       # Start minimal; add values as you need.
       values: |
-        # Example: keep it simple to start.
-        # server:
-        #   ingress:
-        #     enabled: false
+        global:
+          domain: argocd.seagull-monster.ts.net
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: tailscale
 
   syncPolicy:
     automated:
