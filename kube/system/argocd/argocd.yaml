@@ -29,7 +29,7 @@ spec:
               connectors:
                 - config:
                     issuer: https://accounts.google.com
-                    clientID: $dex.google.clientID
+                    clientID: $dex.google.clientId
                     clientSecret:  $dex.google.clientSecret
                   type: oidc
                   id: google
