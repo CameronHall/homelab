@@ -21,8 +21,9 @@ spec:
       values: |
         global:
           domain: argocd.seagull-monster.ts.net
+        config:
+          server.insecure: true
         server:
-          insecure: true
           ingress:
             enabled: true
             ingressClassName: tailscale
