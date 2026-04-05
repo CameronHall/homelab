@@ -1,0 +1,64 @@
+services:
+  nocloud-bootstrap:
+    build:
+      context: .
+      dockerfile: nocloud-bootstrap/Dockerfile
+    env_file:
+      - .env
+    working_dir: /workspace/nocloud-bootstrap
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
+    environment:
+      PYTHONPATH: /workspace
+    ports:
+      - "${NO_CLOUD_BIND_HOST:-127.0.0.1}:${NO_CLOUD_PORT:-8080}:8080"
+    volumes:
+      - ./shared:/workspace/shared
+      - ./nocloud-bootstrap:/workspace/nocloud-bootstrap
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  secret-api:
+    build:
+      context: .
+      dockerfile: secret-api/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - ts-secret-api
+    working_dir: /workspace/secret-api
+    command: /bin/sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${SECRET_API_PORT:-8081}"
+    environment:
+      PYTHONPATH: /workspace
+    network_mode: "service:ts-secret-api"
+    volumes:
+      - ./shared:/workspace/shared
+      - ./secret-api:/workspace/secret-api
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  ts-secret-api:
+    image: tailscale/tailscale:latest
+    hostname: ${TAILSCALE_SECRET_API_HOSTNAME:-secret-api}
+    env_file:
+      - .env
+    environment:
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_EXTRA_ARGS: --advertise-tags=tag:bootstrap-api
+      TS_USERSPACE: "true"
+      TS_CLIENT_ID: ${TS_API_CLIENT_ID}
+      TS_CLIENT_SECRET: ${TS_API_CLIENT_SECRET}
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ./data/tailscale-secret-api:/var/lib/tailscale
+      - ./tailscale-config:/config
+    restart: unless-stopped

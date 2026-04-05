@@ -1,0 +1,41 @@
+// Minimal example policy for bootstrap-only access.
+{
+  // Normal users and admins can keep their broader policy elsewhere.
+  // This example only highlights the bootstrap path.
+  "tagOwners": {
+    "tag:bootstrap": ["autogroup:admin", "tag:bootstrap"],
+    "tag:bootstrap-api": ["autogroup:admin", "tag:bootstrap-api"],
+  },
+
+  "acls": [
+    {
+      // Bootstrap nodes may reach only the secret API over HTTPS.
+      "action": "accept",
+      "src": ["tag:bootstrap"],
+      "dst": ["tag:bootstrap-api:443"],
+    },
+  ],
+
+  "grants": [
+    {
+      // Bootstrap nodes may call the secret API only with the bootstrap app capability.
+      "src": ["tag:bootstrap"],
+      "dst": ["tag:bootstrap-api"],
+      "app": {
+        "homelab.local/cap/bootstrap": [
+          {"role": "bootstrap-client"},
+        ],
+      },
+    },
+  ],
+
+  "ssh": [],
+
+  "tests": [
+    {
+      "src": "tag:bootstrap",
+      "accept": ["tag:bootstrap-api:443"],
+      "deny": ["autogroup:internet:*", "tag:bootstrap:*"],
+    },
+  ],
+}
