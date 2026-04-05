@@ -15,6 +15,7 @@ def test_cloudinit_template_contains_required_bootstrap_behaviors(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("SECRET_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-secrets")
     monkeypatch.setenv("BOOTSTRAP_SSH_IMPORT_ID", "gh:test-user")
+    monkeypatch.setenv("UBUNTU_PRO_TOKEN", "pro-token")
 
     config_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "config", reload_package=True)
     cloudinit_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "services.cloudinit")
@@ -52,6 +53,7 @@ def test_cloudinit_template_omits_ssh_import_id_when_disabled(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("SECRET_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-secrets")
     monkeypatch.setenv("BOOTSTRAP_SSH_IMPORT_ID", "   ")
+    monkeypatch.setenv("UBUNTU_PRO_TOKEN", "pro-token")
 
     config_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "config", reload_package=True)
     cloudinit_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "services.cloudinit")

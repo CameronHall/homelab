@@ -17,6 +17,11 @@ packages:
   - curl
   - jq
   - ssh-import-id
+  - fwupd
+  - git
+  - snapd
+  - unattended-upgrades
+  - gnupg
 write_files:
   - path: /usr/local/bin/bootstrap.sh
     owner: root:root
@@ -35,6 +40,7 @@ write_files:
       CONFIG_FILE="/etc/bootstrap/config.json"
       STATUS_FILE="${STATE_DIR}/tailscale-status.json"
       SECRET_API_URL="{{ secret_api_url }}"
+      UBUNTU_PRO_TOKEN="{{ ubuntu_pro_token }}"
       NODE_ID="{{ node_id }}"
       HOSTNAME="{{ hostname }}"
       INSTANCE_ID="{{ instance_id }}"
@@ -176,6 +182,38 @@ write_files:
         done
       }
 
+      upgrade_firmware() {
+        fwupdmgr refresh --force || true
+        fwupdmgr get-updates || true
+        fwupdmgr update -y || true
+
+        dpkg-reconfigure -f noninteractive unattended-upgrades || true
+        apt-get -y dist-upgrade
+      }
+
+      configure_ubuntu_pro() {
+        if command -v pro >/dev/null 2>&1; then
+          pro attach ${UBUNTU_PRO_TOKEN} || true
+          pro enable livepatch || true
+        fi
+      }
+
+      disable_swap() {
+        swapoff -a || true
+        cp /etc/fstab /etc/fstab.bak
+        awk '$3 == "swap" {$0 = "#" $0} {print}' /etc/fstab.bak > /etc/fstab
+      }
+
+      install_k8s() {
+        snap install microk8s --classic --channel=latest/stable || \
+            snap refresh microk8s --channel=latest/stable
+
+        usermod -aG microk8s ubuntu
+
+        microk8s status --wait-ready
+        microk8s enable dns registry
+      }
+
       main() {
         if [ -f "${SENTINEL}" ]; then
           log "bootstrap already completed"
@@ -183,14 +221,19 @@ write_files:
         fi
 
         wait_for_network
+        upgrade_firmware
+        disable_swap
+        configure_ubuntu_pro
         install_tailscale
         join_tailnet
         wait_for_tailscale
         fetch_secrets
         write_secret_payload
+        install_k8s
         touch "${SENTINEL}"
         chmod 0600 "${SENTINEL}"
-        log "bootstrap complete"
+        log "bootstrap complete. Restarting..."
+        reboot
       }
 
       main

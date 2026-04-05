@@ -40,6 +40,7 @@ def load_client(monkeypatch, tmp_path):
     monkeypatch.setenv("SECRET_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-secrets")
     monkeypatch.setenv("USER_DATA_REUSE_TTL_SECONDS", "300")
     monkeypatch.setenv("AUTH_KEY_EXPIRY_MINUTES", "10")
+    monkeypatch.setenv("UBUNTU_PRO_TOKEN", "pro-token")
 
     main_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "main", reload_package=True)
     provisioning_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "services.provisioning")
