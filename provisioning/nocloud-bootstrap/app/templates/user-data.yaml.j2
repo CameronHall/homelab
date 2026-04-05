@@ -1,0 +1,222 @@
+#cloud-config
+hostname: {{ hostname }}
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: sudo
+    shell: /bin/bash
+{% if ssh_import_id %}
+    ssh_import_id:
+      - {{ ssh_import_id }}
+{% endif %}
+manage_etc_hosts: true
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - jq
+  - ssh-import-id
+write_files:
+  - path: /usr/local/bin/bootstrap.sh
+    owner: root:root
+    permissions: "0700"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      LOG_DIR="/var/log/bootstrap"
+      LOG_FILE="${LOG_DIR}/bootstrap.log"
+      STATE_DIR="/var/lib/bootstrap"
+      SENTINEL="${STATE_DIR}/complete"
+      REQUEST_FILE="${STATE_DIR}/request.json"
+      RESPONSE_FILE="${STATE_DIR}/response.json"
+      SECRETS_FILE="/etc/bootstrap/secrets.env"
+      CONFIG_FILE="/etc/bootstrap/config.json"
+      STATUS_FILE="${STATE_DIR}/tailscale-status.json"
+      SECRET_API_URL="{{ secret_api_url }}"
+      NODE_ID="{{ node_id }}"
+      HOSTNAME="{{ hostname }}"
+      INSTANCE_ID="{{ instance_id }}"
+      MAX_ATTEMPTS=40
+
+      mkdir -p "${LOG_DIR}" "${STATE_DIR}" /etc/bootstrap
+      chmod 0700 "${STATE_DIR}" /etc/bootstrap
+
+      log() {
+        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${LOG_FILE}"
+      }
+
+      write_if_changed() {
+        local destination="$1"
+        local tmp_file
+        tmp_file="$(mktemp)"
+        cat > "${tmp_file}"
+        if [ -f "${destination}" ] && cmp -s "${tmp_file}" "${destination}"; then
+          rm -f "${tmp_file}"
+          chmod 0600 "${destination}"
+          chown root:root "${destination}"
+          return 0
+        fi
+        install -D -m 0600 -o root -g root "${tmp_file}" "${destination}"
+        rm -f "${tmp_file}"
+      }
+
+      wait_for_network() {
+        local attempt=1
+        while [ "${attempt}" -le 10 ]; do
+          if ip route show default >/dev/null 2>&1; then
+            return 0
+          fi
+          log "waiting for default route"
+          sleep "${attempt}"
+          attempt=$((attempt + 1))
+        done
+        log "network did not become ready in time"
+        return 1
+      }
+
+      install_tailscale() {
+        if command -v tailscale >/dev/null 2>&1; then
+          return 0
+        fi
+        log "installing tailscale"
+        curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
+      }
+
+      join_tailnet() {
+        if [ -f "${STATE_DIR}/tailscale-up.ok" ]; then
+          return 0
+        fi
+        log "joining tailnet with bootstrap tag"
+        tailscale up \
+          --authkey={{ tailscale_auth_key }} \
+          --hostname="${HOSTNAME}" \
+          --advertise-tags={{ advertise_tags_csv }} \
+          --accept-dns=false \
+          --accept-routes=false >/dev/null
+        touch "${STATE_DIR}/tailscale-up.ok"
+      }
+
+      wait_for_tailscale() {
+        local attempt=1
+        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+          if tailscale status --json > "${STATUS_FILE}" 2>/dev/null; then
+            if jq -e '.BackendState == "Running" and .Self.Online == true and (.Self.TailscaleIPs | length) > 0' "${STATUS_FILE}" >/dev/null 2>&1; then
+              log "tailscale connectivity available"
+              return 0
+            fi
+            log "tailscale state=$(jq -r '.BackendState // \"unknown\"' "${STATUS_FILE}") waiting for approval or connectivity"
+          else
+            log "tailscale status not yet available"
+          fi
+          sleep "${attempt}"
+          attempt=$((attempt + 1))
+        done
+        log "tailscale connectivity not ready before timeout"
+        return 1
+      }
+
+      fetch_secrets() {
+        local attempt=1
+        local backoff=2
+        local http_code
+
+        cat > "${REQUEST_FILE}" <<EOF
+      {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}"}
+      EOF
+
+        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+          http_code="$(
+            curl -sS \
+              --connect-timeout 5 \
+              --max-time 20 \
+              --output "${RESPONSE_FILE}" \
+              --write-out "%{http_code}" \
+              --header "Content-Type: application/json" \
+              --data-binary @"${REQUEST_FILE}" \
+              "${SECRET_API_URL}" || true
+          )"
+
+          case "${http_code}" in
+            200)
+              log "secret payload retrieved"
+              return 0
+              ;;
+            403|409|425|502|503|504)
+              log "secret API not ready yet status=${http_code}; retrying"
+              ;;
+            *)
+              log "secret API returned fatal status=${http_code}"
+              return 1
+              ;;
+          esac
+
+          sleep "${backoff}"
+          if [ "${backoff}" -lt 60 ]; then
+            backoff=$((backoff * 2))
+          fi
+          attempt=$((attempt + 1))
+        done
+
+        log "secret API did not become ready within retry bounds"
+        return 1
+      }
+
+      write_secret_payload() {
+        jq -r '.env // {} | to_entries[] | "\(.key)=\(.value | @sh)"' "${RESPONSE_FILE}" | write_if_changed "${SECRETS_FILE}"
+
+        if jq -e '.config != null' "${RESPONSE_FILE}" >/dev/null 2>&1; then
+          jq -c '.config' "${RESPONSE_FILE}" | write_if_changed "${CONFIG_FILE}"
+        fi
+
+        jq -c '.files[]?' "${RESPONSE_FILE}" | while IFS= read -r file_entry; do
+          file_path="$(printf '%s' "${file_entry}" | jq -r '.path')"
+          printf '%s' "${file_entry}" | jq -r '.content' | write_if_changed "${file_path}"
+        done
+      }
+
+      main() {
+        if [ -f "${SENTINEL}" ]; then
+          log "bootstrap already completed"
+          exit 0
+        fi
+
+        wait_for_network
+        install_tailscale
+        join_tailnet
+        wait_for_tailscale
+        fetch_secrets
+        write_secret_payload
+        touch "${SENTINEL}"
+        chmod 0600 "${SENTINEL}"
+        log "bootstrap complete"
+      }
+
+      main
+  - path: /etc/systemd/system/bootstrap.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Bootstrap secret retrieval over Tailscale
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/bootstrap.sh
+      User=root
+      Group=root
+      RemainAfterExit=yes
+      Restart=on-failure
+      RestartSec=30s
+
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [bash, -lc, "command -v tailscale >/dev/null 2>&1 || (curl -fsSL https://tailscale.com/install.sh | sh)"]
+  - [bash, -lc, "mkdir -p /var/log/bootstrap /var/lib/bootstrap /etc/bootstrap && chmod 0700 /var/lib/bootstrap /etc/bootstrap"]
+  - [bash, -lc, "tailscale up --authkey={{ tailscale_auth_key }} --hostname={{ hostname }} --advertise-tags={{ advertise_tags_csv }} --accept-dns=false --accept-routes=false || true"]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, bootstrap.service]
