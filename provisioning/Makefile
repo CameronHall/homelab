@@ -27,7 +27,7 @@ $(TAILSCALE_CONFIG): $(TAILSCALE_TEMPLATE) $(ENV_FILE)
 	printf 'Rendered %s\n' "$(TAILSCALE_CONFIG)"
 
 start: init $(TAILSCALE_CONFIG)
-	@$(DOCKER_COMPOSE) up --build -d
+	@$(DOCKER_COMPOSE) up -d
 
 test:
 	@uv run pytest
@@ -38,15 +38,14 @@ vm:
 		exit 1; \
 	fi; \
 	VM_NAME="$${VM_NAME:-bootstrap-test}"; \
-	SEED_BASE_URL="$${SEED_BASE_URL:-http://127.0.0.1:8080}"; \
-	CREATE_OUTPUT="$$(uv run python scripts/create_node.py --hostname "$$VM_NAME" --base-url "$$SEED_BASE_URL")"; \
+	CREATE_OUTPUT="$$(uv run python scripts/create_node.py --hostname "$$VM_NAME")"; \
 	printf '%s\n' "$$CREATE_OUTPUT"; \
 	SEED_TOKEN="$$(printf '%s\n' "$$CREATE_OUTPUT" | awk -F= '/^seed_token=/{print substr($$0, index($$0, "=") + 1); exit}')"; \
 	if [ -z "$$SEED_TOKEN" ]; then \
 		printf 'Failed to extract seed_token from create_node.py output\n' >&2; \
 		exit 1; \
 	fi; \
-	IMAGE_PATH="$(IMAGE_PATH)" VM_NAME="$$VM_NAME" VM_DISK="$(BOOTSTRAP_IMAGE)" SEED_BASE_URL="$$SEED_BASE_URL" SEED_TOKEN="$$SEED_TOKEN" ./scripts/qemu_test.sh
+	IMAGE_PATH="$(IMAGE_PATH)" VM_NAME="$$VM_NAME" SEED_TOKEN="$$SEED_TOKEN" ./scripts/qemu_test.sh
 
 clean:
-	@rm -f "$(TAILSCALE_CONFIG)" "$(BOOTSTRAP_IMAGE)"
+	@rm -f "$(TAILSCALE_CONFIG)" "build/bootstrap-test.qcow2"

@@ -1,0 +1,12 @@
+build/
+*.img
+rendered/
+.DS_Store
+provisioning/.env
+provisioning/tailscale-config/serve.json
+provisioning/data/*
+!provisioning/data/.gitkeep
+provisioning/build
+provisioning/.venv
+provisioning/.pytest_cache
+provisioning/*.log

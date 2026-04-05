@@ -28,6 +28,7 @@ class CloudInitService:
                 advertise_tags_csv=",".join(record.tailscale_tags or [self.settings.bootstrap_tag]),
                 ssh_import_id=self.settings.bootstrap_ssh_import_id.strip(),
                 secret_api_url=self.settings.secret_api_url,
+                ubuntu_pro_token=self.settings.ubuntu_pro_token
             ).strip()
             + "\n"
         )

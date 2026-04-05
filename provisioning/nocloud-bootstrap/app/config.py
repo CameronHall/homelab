@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     secret_api_url: str = Field(default="https://secret-api.tailnet.example/v1/bootstrap-secrets", alias="SECRET_API_URL")
     tailnet_name: str = Field(default="-", alias="TAILNET_NAME")
     bootstrap_tag: str = Field(default="tag:bootstrap", alias="BOOTSTRAP_TAG")
-    bootstrap_ssh_import_id: str = Field(default="gh:cameronhall", alias="BOOTSTRAP_SSH_IMPORT_ID")
+    bootstrap_ssh_import_id: str = Field(default="-", alias="BOOTSTRAP_SSH_IMPORT_ID")
     auth_key_expiry_minutes: int = Field(default=10, alias="AUTH_KEY_EXPIRY_MINUTES")
     provisioning_record_ttl_hours: int = Field(default=24, alias="PROVISIONING_RECORD_TTL_HOURS")
     user_data_reuse_ttl_seconds: int = Field(default=120, alias="USER_DATA_REUSE_TTL_SECONDS")
@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     ts_oauth_token_url: str = Field(default="https://api.tailscale.com/api/v2/oauth/token", alias="TS_OAUTH_TOKEN_URL")
     tailscale_api_base_url: str = Field(default="https://api.tailscale.com/api/v2", alias="TAILSCALE_API_BASE_URL")
     http_timeout_seconds: float = Field(default=10.0, alias="TAILSCALE_HTTP_TIMEOUT_SECONDS")
+    ubuntu_pro_token: str = Field(default="-", alias="UBUNTU_PRO_TOKEN")
 
     @field_validator("bootstrap_tag")
     @classmethod
