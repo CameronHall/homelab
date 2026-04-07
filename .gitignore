@@ -10,3 +10,5 @@ provisioning/build
 provisioning/.venv
 provisioning/.pytest_cache
 provisioning/*.log
+*.pyc
+__pycache__
