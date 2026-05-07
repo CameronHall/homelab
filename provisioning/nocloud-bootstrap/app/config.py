@@ -19,7 +19,9 @@ class Settings(BaseSettings):
         alias="BOOTSTRAP_TEMPLATE_DIR",
     )
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-    secret_api_url: str = Field(default="https://secret-api.tailnet.example/v1/bootstrap-secrets", alias="SECRET_API_URL")
+    secret_api_url: str = Field(alias="SECRET_API_URL")
+    cluster_bootstrap_api_url: str = Field(alias="CLUSTER_BOOTSTRAP_API_URL")
+    microk8s_cluster_name: str = Field(default="homelab", alias="MICROK8S_CLUSTER_NAME")
     tailnet_name: str = Field(default="-", alias="TAILNET_NAME")
     bootstrap_tag: str = Field(default="tag:bootstrap", alias="BOOTSTRAP_TAG")
     bootstrap_ssh_import_id: str = Field(default="-", alias="BOOTSTRAP_SSH_IMPORT_ID")

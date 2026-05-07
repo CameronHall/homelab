@@ -14,6 +14,8 @@ def test_cloudinit_template_contains_required_bootstrap_behaviors(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_ID", "client-id")
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("SECRET_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-secrets")
+    monkeypatch.setenv("CLUSTER_BOOTSTRAP_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-cluster")
+    monkeypatch.setenv("MICROK8S_CLUSTER_NAME", "homelab")
     monkeypatch.setenv("BOOTSTRAP_SSH_IMPORT_ID", "gh:test-user")
     monkeypatch.setenv("UBUNTU_PRO_TOKEN", "pro-token")
 
@@ -45,6 +47,10 @@ def test_cloudinit_template_contains_required_bootstrap_behaviors(monkeypatch):
     assert "--authkey=tskey-auth-test" in rendered
     assert "--advertise-tags=tag:bootstrap" in rendered
     assert "/etc/bootstrap/secrets.env" in rendered
+    assert "CLUSTER_BOOTSTRAP_API_URL" in rendered
+    assert 'CLUSTER_NAME="homelab"' in rendered
+    assert "microk8s enable dns hostpath-storage" in rendered
+    assert "microk8s enable dns registry" not in rendered
     assert "403|409|425|502|503|504" in rendered
 
 
@@ -52,6 +58,8 @@ def test_cloudinit_template_omits_ssh_import_id_when_disabled(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_ID", "client-id")
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("SECRET_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-secrets")
+    monkeypatch.setenv("CLUSTER_BOOTSTRAP_API_URL", "https://secret-api.tailnet.example/v1/bootstrap-cluster")
+    monkeypatch.setenv("MICROK8S_CLUSTER_NAME", "homelab")
     monkeypatch.setenv("BOOTSTRAP_SSH_IMPORT_ID", "   ")
     monkeypatch.setenv("UBUNTU_PRO_TOKEN", "pro-token")
 

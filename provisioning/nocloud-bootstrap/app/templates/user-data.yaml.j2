@@ -34,20 +34,25 @@ write_files:
       LOG_FILE="${LOG_DIR}/bootstrap.log"
       STATE_DIR="/var/lib/bootstrap"
       SENTINEL="${STATE_DIR}/complete"
+      CLUSTER_SENTINEL="${STATE_DIR}/cluster-configured"
       REQUEST_FILE="${STATE_DIR}/request.json"
       RESPONSE_FILE="${STATE_DIR}/response.json"
+      CLUSTER_REQUEST_FILE="${STATE_DIR}/cluster-request.json"
+      BOOTSTRAP_JSON="/run/bootstrap/cluster.json"
       SECRETS_FILE="/etc/bootstrap/secrets.env"
       CONFIG_FILE="/etc/bootstrap/config.json"
       STATUS_FILE="${STATE_DIR}/tailscale-status.json"
       SECRET_API_URL="{{ secret_api_url }}"
+      CLUSTER_BOOTSTRAP_API_URL="{{ cluster_bootstrap_api_url }}"
+      CLUSTER_NAME="{{ microk8s_cluster_name }}"
       UBUNTU_PRO_TOKEN="{{ ubuntu_pro_token }}"
       NODE_ID="{{ node_id }}"
       HOSTNAME="{{ hostname }}"
       INSTANCE_ID="{{ instance_id }}"
       MAX_ATTEMPTS=40
 
-      mkdir -p "${LOG_DIR}" "${STATE_DIR}" /etc/bootstrap
-      chmod 0700 "${STATE_DIR}" /etc/bootstrap
+      mkdir -p "${LOG_DIR}" "${STATE_DIR}" /etc/bootstrap /run/bootstrap
+      chmod 0700 "${STATE_DIR}" /etc/bootstrap /run/bootstrap
 
       log() {
         printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${LOG_FILE}"
@@ -99,7 +104,7 @@ write_files:
           --authkey={{ tailscale_auth_key }} \
           --hostname="${HOSTNAME}" \
           --advertise-tags={{ advertise_tags_csv }} \
-          --accept-dns=false \
+          --accept-dns=true \
           --accept-routes=false >/dev/null
         touch "${STATE_DIR}/tailscale-up.ok"
       }
@@ -211,7 +216,122 @@ write_files:
         usermod -aG microk8s ubuntu
 
         microk8s status --wait-ready
-        microk8s enable dns registry
+      }
+
+      discover_api_endpoint() {
+        local endpoint
+        endpoint="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')"
+        if [ -z "${endpoint}" ]; then
+          endpoint="${HOSTNAME}"
+        fi
+        printf '%s\n' "${endpoint}"
+      }
+
+      fetch_cluster_role() {
+        local attempt=1
+        local backoff=2
+        local http_code
+        local api_endpoint
+
+        api_endpoint="$(discover_api_endpoint)"
+
+        cat > "${CLUSTER_REQUEST_FILE}" <<EOF
+      {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}","cluster_name":"${CLUSTER_NAME}","api_endpoint":"${api_endpoint}"}
+      EOF
+
+        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+          http_code="$(
+            curl -sS \
+              --connect-timeout 5 \
+              --max-time 20 \
+              --output "${BOOTSTRAP_JSON}" \
+              --write-out "%{http_code}" \
+              --header "Content-Type: application/json" \
+              --data-binary @"${CLUSTER_REQUEST_FILE}" \
+              "${CLUSTER_BOOTSTRAP_API_URL}" || true
+          )"
+
+          case "${http_code}" in
+            200)
+              log "cluster bootstrap decision retrieved"
+              return 0
+              ;;
+            403|409|425|502|503|504)
+              log "cluster bootstrap API not ready yet status=${http_code}; retrying"
+              ;;
+            *)
+              log "cluster bootstrap API returned fatal status=${http_code}"
+              return 1
+              ;;
+          esac
+
+          sleep "${backoff}"
+          if [ "${backoff}" -lt 60 ]; then
+            backoff=$((backoff * 2))
+          fi
+          attempt=$((attempt + 1))
+        done
+
+        log "cluster bootstrap API did not become ready within retry bounds"
+        return 1
+      }
+
+      seed_eso_credentials() {
+        local client_id client_secret
+        client_id="$(grep '^INFISICAL_CLIENT_ID=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
+        client_secret="$(grep '^INFISICAL_CLIENT_SECRET=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
+
+        if [ -z "${client_id}" ] || [ -z "${client_secret}" ]; then
+          log "INFISICAL_CLIENT_ID or INFISICAL_CLIENT_SECRET not present in secrets payload; skipping ESO credential seeding"
+          return 0
+        fi
+
+        log "seeding ESO Infisical credentials into cluster"
+        microk8s kubectl create namespace external-secrets --dry-run=client -o yaml | microk8s kubectl apply -f -
+        microk8s kubectl create secret generic infisical-universal-auth \
+          --namespace external-secrets \
+          --from-literal=clientId="${client_id}" \
+          --from-literal=clientSecret="${client_secret}" \
+          --dry-run=client -o yaml | microk8s kubectl apply -f -
+        log "ESO credentials seeded"
+        rm -f "${SECRETS_FILE}"
+        log "secrets file wiped"
+      }
+
+      configure_cluster() {
+        local role
+        local join_command
+
+        if [ -f "${CLUSTER_SENTINEL}" ]; then
+          log "cluster bootstrap already completed"
+          return 0
+        fi
+
+        fetch_cluster_role
+        role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}")"
+
+        case "${role}" in
+          bootstrap)
+            log "node selected as bootstrap node for cluster ${CLUSTER_NAME}"
+            microk8s enable dns hostpath-storage
+            ;;
+          join)
+            join_command="$(jq -r '.join_command // empty' "${BOOTSTRAP_JSON}")"
+            if [ -z "${join_command}" ]; then
+              log "cluster bootstrap response missing join_command"
+              return 1
+            fi
+            log "node selected to join cluster ${CLUSTER_NAME}"
+            eval "${join_command}"
+            ;;
+          *)
+            log "cluster bootstrap response had invalid role=${role}"
+            return 1
+            ;;
+        esac
+
+        touch "${CLUSTER_SENTINEL}"
+        chmod 0600 "${CLUSTER_SENTINEL}"
       }
 
       main() {
@@ -230,6 +350,11 @@ write_files:
         fetch_secrets
         write_secret_payload
         install_k8s
+        configure_cluster
+        role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}" 2>/dev/null || true)"
+        if [ "${role}" = "bootstrap" ]; then
+          seed_eso_credentials
+        fi
         touch "${SENTINEL}"
         chmod 0600 "${SENTINEL}"
         log "bootstrap complete. Restarting..."
@@ -260,6 +385,6 @@ write_files:
 runcmd:
   - [bash, -lc, "command -v tailscale >/dev/null 2>&1 || (curl -fsSL https://tailscale.com/install.sh | sh)"]
   - [bash, -lc, "mkdir -p /var/log/bootstrap /var/lib/bootstrap /etc/bootstrap && chmod 0700 /var/lib/bootstrap /etc/bootstrap"]
-  - [bash, -lc, "tailscale up --authkey={{ tailscale_auth_key }} --hostname={{ hostname }} --advertise-tags={{ advertise_tags_csv }} --accept-dns=false --accept-routes=false || true"]
+  - [bash, -lc, "tailscale up --authkey={{ tailscale_auth_key }} --hostname={{ hostname }} --advertise-tags={{ advertise_tags_csv }} --accept-dns=true --accept-routes=false || true"]
   - [systemctl, daemon-reload]
   - [systemctl, enable, --now, bootstrap.service]

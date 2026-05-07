@@ -46,3 +46,23 @@ class ProvisioningRecord(Base):
         current_time = now or utc_now()
         expires_at = ensure_utc(self.expires_at)
         return current_time >= expires_at
+
+
+class ClusterState(Base):
+    __tablename__ = "cluster_states"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    cluster_name: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    established: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    bootstrap_node: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    api_endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+
+class ClusterBootstrapLock(Base):
+    __tablename__ = "cluster_bootstrap_locks"
+
+    cluster_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    owner_node_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utc_now)

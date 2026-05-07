@@ -9,6 +9,7 @@ from shared.util import configure_json_logging
 
 from .config import get_settings
 from .db import init_db
+from .routes.cluster_bootstrap import router as cluster_bootstrap_router
 from .routes.bootstrap import router as bootstrap_router
 from .routes.health import router as health_router
 
@@ -28,3 +29,4 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Bootstrap Secret API", version="0.1.0", lifespan=lifespan)
 app.include_router(health_router)
 app.include_router(bootstrap_router)
+app.include_router(cluster_bootstrap_router)

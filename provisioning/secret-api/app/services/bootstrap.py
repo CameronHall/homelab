@@ -10,15 +10,17 @@ from shared.models import ProvisioningRecord, ProvisioningState
 from shared.util import utc_now
 
 from ..config import Settings, get_settings
-from ..schemas import BootstrapFile, BootstrapSecretRequest, BootstrapSecretResponse
+from ..schemas import BootstrapFile, BootstrapNodeRequest, BootstrapSecretRequest, BootstrapSecretResponse
 from ..tailscale_auth import BootstrapCallerIdentity, TailscaleAuthHelper
 from ..tailscale_control import TailscaleControlClient, TailscaleControlError, get_tailscale_control_client
+from .infisical import InfisicalClient, InfisicalError, get_infisical_client
 
 
 class BootstrapService:
-    def __init__(self, settings: Settings, tailscale_control: TailscaleControlClient) -> None:
+    def __init__(self, settings: Settings, tailscale_control: TailscaleControlClient, infisical: InfisicalClient) -> None:
         self.settings = settings
         self.tailscale_control = tailscale_control
+        self.infisical = infisical
 
     def fetch_secret_payload(
         self,
@@ -26,6 +28,41 @@ class BootstrapService:
         identity: BootstrapCallerIdentity,
         payload: BootstrapSecretRequest,
     ) -> BootstrapSecretResponse:
+        record = self.authorize_record(session=session, identity=identity, payload=payload)
+
+        if record.state != ProvisioningState.SECRETS_DELIVERED.value:
+            record.state = ProvisioningState.SECRETS_DELIVERED.value
+            record.secrets_retrieved_at = record.secrets_retrieved_at or utc_now()
+        else:
+            record.secrets_retrieved_at = record.secrets_retrieved_at or utc_now()
+        session.add(record)
+        session.commit()
+
+        env = dict(self.settings.bootstrap_env)
+
+        if self.infisical.is_configured:
+            try:
+                token = self.infisical.get_access_token()
+                infisical_secrets = self.infisical.list_secrets(token)
+                env.update(infisical_secrets)
+            except InfisicalError as exc:
+                raise HTTPException(status_code=502, detail=f"failed to fetch secrets from Infisical: {exc}") from exc
+
+            env["INFISICAL_CLIENT_ID"] = self.settings.infisical_client_id or ""
+            env["INFISICAL_CLIENT_SECRET"] = self.settings.infisical_client_secret or ""
+
+        return BootstrapSecretResponse(
+            env=env,
+            files=[BootstrapFile(**item) for item in self.settings.bootstrap_files],
+            config=self.settings.bootstrap_config,
+        )
+
+    def authorize_record(
+        self,
+        session: Session,
+        identity: BootstrapCallerIdentity,
+        payload: BootstrapNodeRequest,
+    ) -> ProvisioningRecord:
         if self.settings.bootstrap_capability not in identity.capabilities:
             raise HTTPException(status_code=403, detail="bootstrap capability not granted")
 
@@ -55,19 +92,7 @@ class BootstrapService:
             session.commit()
             raise HTTPException(status_code=425, detail="device approval still pending")
 
-        if record.state != ProvisioningState.SECRETS_DELIVERED.value:
-            record.state = ProvisioningState.SECRETS_DELIVERED.value
-            record.secrets_retrieved_at = record.secrets_retrieved_at or utc_now()
-        else:
-            record.secrets_retrieved_at = record.secrets_retrieved_at or utc_now()
-        session.add(record)
-        session.commit()
-
-        return BootstrapSecretResponse(
-            env=self.settings.bootstrap_env,
-            files=[BootstrapFile(**item) for item in self.settings.bootstrap_files],
-            config=self.settings.bootstrap_config,
-        )
+        return record
 
     def _refresh_approval_state(self, record: ProvisioningRecord, identity: BootstrapCallerIdentity) -> bool:
         try:
@@ -94,7 +119,7 @@ class BootstrapService:
         self,
         session: Session,
         identity: BootstrapCallerIdentity,
-        payload: BootstrapSecretRequest,
+        payload: BootstrapNodeRequest,
     ) -> ProvisioningRecord | None:
         if identity.node_name:
             statement = select(ProvisioningRecord).where(
@@ -127,4 +152,4 @@ class BootstrapService:
 
 @lru_cache(maxsize=1)
 def get_bootstrap_service() -> BootstrapService:
-    return BootstrapService(get_settings(), get_tailscale_control_client())
+    return BootstrapService(get_settings(), get_tailscale_control_client(), get_infisical_client())

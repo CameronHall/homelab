@@ -14,6 +14,8 @@ def test_create_bootstrap_auth_key_uses_oauth_client_credentials(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("TAILNET_NAME", "example-tailnet")
     monkeypatch.setenv("BOOTSTRAP_TAG", "tag:bootstrap")
+    monkeypatch.setenv("SECRET_API_URL", "https://secret-api.example.ts.net/v1/bootstrap-secrets")
+    monkeypatch.setenv("CLUSTER_BOOTSTRAP_API_URL", "https://secret-api.example.ts.net/v1/bootstrap-cluster")
 
     config_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "config", reload_package=True)
     oauth_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "tailscale_oauth")
@@ -62,6 +64,8 @@ def test_create_bootstrap_auth_key_uses_oauth_client_credentials(monkeypatch):
 def test_create_bootstrap_auth_key_falls_back_to_computed_expiry(monkeypatch):
     monkeypatch.setenv("TS_API_CLIENT_ID", "client-id")
     monkeypatch.setenv("TS_API_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("SECRET_API_URL", "https://secret-api.example.ts.net/v1/bootstrap-secrets")
+    monkeypatch.setenv("CLUSTER_BOOTSTRAP_API_URL", "https://secret-api.example.ts.net/v1/bootstrap-cluster")
 
     config_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "config", reload_package=True)
     oauth_module = load_service_module("nocloud-bootstrap", "nocloud_bootstrap_app", "tailscale_oauth")

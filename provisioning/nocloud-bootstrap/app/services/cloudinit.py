@@ -28,6 +28,8 @@ class CloudInitService:
                 advertise_tags_csv=",".join(record.tailscale_tags or [self.settings.bootstrap_tag]),
                 ssh_import_id=self.settings.bootstrap_ssh_import_id.strip(),
                 secret_api_url=self.settings.secret_api_url,
+                cluster_bootstrap_api_url=self.settings.cluster_bootstrap_api_url,
+                microk8s_cluster_name=self.settings.microk8s_cluster_name,
                 ubuntu_pro_token=self.settings.ubuntu_pro_token
             ).strip()
             + "\n"

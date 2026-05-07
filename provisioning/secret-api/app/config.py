@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -40,6 +41,37 @@ class Settings(BaseSettings):
     bootstrap_env: dict[str, str] = Field(default_factory=dict, alias="BOOTSTRAP_ENV_JSON")
     bootstrap_files: list[dict[str, str]] = Field(default_factory=list, alias="BOOTSTRAP_FILES_JSON")
     bootstrap_config: dict[str, Any] | None = Field(default=None, alias="BOOTSTRAP_CONFIG_JSON")
+    microk8s_cluster_name: str = Field(default="homelab", alias="MICROK8S_CLUSTER_NAME")
+    microk8s_join_token_ttl_seconds: int = Field(default=300, alias="MICROK8S_JOIN_TOKEN_TTL_SECONDS")
+    microk8s_bootstrap_ssh_user: str = Field(default="ubuntu", alias="MICROK8S_BOOTSTRAP_SSH_USER")
+    microk8s_bootstrap_ssh_port: int = Field(default=22, alias="MICROK8S_BOOTSTRAP_SSH_PORT")
+    microk8s_bootstrap_ssh_key_path: Path | None = Field(default=None, alias="MICROK8S_BOOTSTRAP_SSH_KEY_PATH")
+    microk8s_bootstrap_ssh_options: str = Field(
+        default="-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10",
+        alias="MICROK8S_BOOTSTRAP_SSH_OPTIONS",
+    )
+    microk8s_remote_command_timeout_seconds: float = Field(
+        default=30.0,
+        alias="MICROK8S_REMOTE_COMMAND_TIMEOUT_SECONDS",
+    )
+    cluster_bootstrap_lock_timeout_seconds: int = Field(
+        default=30,
+        alias="CLUSTER_BOOTSTRAP_LOCK_TIMEOUT_SECONDS",
+    )
+    cluster_bootstrap_lock_stale_seconds: int = Field(
+        default=120,
+        alias="CLUSTER_BOOTSTRAP_LOCK_STALE_SECONDS",
+    )
+    cluster_bootstrap_lock_retry_seconds: float = Field(
+        default=1.0,
+        alias="CLUSTER_BOOTSTRAP_LOCK_RETRY_SECONDS",
+    )
+    infisical_client_id: str | None = Field(default=None, alias="INFISICAL_CLIENT_ID")
+    infisical_client_secret: str | None = Field(default=None, alias="INFISICAL_CLIENT_SECRET")
+    infisical_project_id: str | None = Field(default=None, alias="INFISICAL_PROJECT_ID")
+    infisical_environment: str = Field(default="production", alias="INFISICAL_ENVIRONMENT")
+    infisical_secret_path: str = Field(default="/", alias="INFISICAL_SECRET_PATH")
+    infisical_base_url: str = Field(default="https://app.infisical.com", alias="INFISICAL_BASE_URL")
 
     @field_validator("bootstrap_env", mode="before")
     @classmethod
