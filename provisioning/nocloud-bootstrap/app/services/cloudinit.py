@@ -30,7 +30,10 @@ class CloudInitService:
                 secret_api_url=self.settings.secret_api_url,
                 cluster_bootstrap_api_url=self.settings.cluster_bootstrap_api_url,
                 microk8s_cluster_name=self.settings.microk8s_cluster_name,
-                ubuntu_pro_token=self.settings.ubuntu_pro_token
+                ubuntu_pro_token=self.settings.ubuntu_pro_token,
+                argocd_install_manifest_url=self.settings.argocd_install_manifest_url,
+                homelab_repo_url=self.settings.homelab_repo_url,
+                homelab_repo_revision=self.settings.homelab_repo_revision,
             ).strip()
             + "\n"
         )

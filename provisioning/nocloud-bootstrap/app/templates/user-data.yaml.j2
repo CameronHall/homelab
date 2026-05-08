@@ -298,6 +298,54 @@ write_files:
         log "secrets file wiped"
       }
 
+      install_argocd() {
+        local argocd_sentinel="${STATE_DIR}/argocd-installed"
+        if [ -f "${argocd_sentinel}" ]; then
+          log "argocd already installed"
+          return 0
+        fi
+
+        log "creating argocd namespace"
+        microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
+
+        log "installing argocd"
+        microk8s kubectl apply -n argocd -f "{{ argocd_install_manifest_url }}"
+
+        log "waiting for argocd-server to become available"
+        microk8s kubectl wait deployment argocd-server \
+          --namespace argocd \
+          --for=condition=Available \
+          --timeout=300s
+
+        log "applying bootstrap application"
+        microk8s kubectl apply -f - <<EOF
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: bootstrap
+        namespace: argocd
+      spec:
+        project: default
+        source:
+          repoURL: {{ homelab_repo_url }}
+          targetRevision: {{ homelab_repo_revision }}
+          path: kube/clusters/homelab
+          directory:
+            recurse: true
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+      EOF
+
+        touch "${argocd_sentinel}"
+        chmod 0600 "${argocd_sentinel}"
+        log "argocd installed and bootstrap application applied"
+      }
+
       configure_cluster() {
         local role
         local join_command
@@ -354,6 +402,7 @@ write_files:
         role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}" 2>/dev/null || true)"
         if [ "${role}" = "bootstrap" ]; then
           seed_eso_credentials
+          install_argocd
         fi
         touch "${SENTINEL}"
         chmod 0600 "${SENTINEL}"

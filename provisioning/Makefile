@@ -7,7 +7,7 @@ TAILSCALE_CONFIG := tailscale-config/serve.json
 BOOTSTRAP_IMAGE := bootstrap-test.qcow2
 DOCKER_COMPOSE := docker compose -f docker-compose.yml --env-file $(ENV_FILE)
 
-.PHONY: init start test vm clean
+.PHONY: init start test vm clean stop reset
 
 init:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
@@ -49,3 +49,8 @@ vm:
 
 clean:
 	@rm -f "$(TAILSCALE_CONFIG)" "build/bootstrap-test.qcow2"
+
+stop:
+	@$(DOCKER_COMPOSE) down
+
+reset: stop clean start
