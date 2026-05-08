@@ -11,6 +11,8 @@ spec:
     repoURL: https://github.com/cameronhall/homelab
     targetRevision: main
     path: kube/apps
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
