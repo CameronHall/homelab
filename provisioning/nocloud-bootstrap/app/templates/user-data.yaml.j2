@@ -210,8 +210,11 @@ write_files:
       }
 
       install_k8s() {
-        snap install microk8s --classic --channel=latest/stable || \
-            snap refresh microk8s --channel=latest/stable
+        if snap list microk8s >/dev/null 2>&1; then
+          snap refresh microk8s --channel=latest/stable || true
+        else
+          snap install microk8s --classic --channel=latest/stable
+        fi
 
         usermod -aG microk8s ubuntu
 
@@ -309,7 +312,7 @@ write_files:
         microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
 
         log "installing argocd"
-        microk8s kubectl apply -n argocd -f "{{ argocd_install_manifest_url }}"
+        microk8s kubectl apply -n argocd --server-side --force-conflicts -f "{{ argocd_install_manifest_url }}"
 
         log "waiting for argocd-server to become available"
         microk8s kubectl wait deployment argocd-server \
