@@ -279,6 +279,62 @@ write_files:
         return 1
       }
 
+      patch_calico_cni_token() {
+        local calico_kubeconfig="/etc/cni/net.d/calico-kubeconfig"
+        local secret_name="calico-cni-plugin-token"
+        local namespace="kube-system"
+        local attempt=1
+
+        if [ ! -f "${calico_kubeconfig}" ]; then
+          log "calico-kubeconfig not found; skipping CNI token patch"
+          return 0
+        fi
+
+        log "patching calico CNI kubeconfig with non-expiring token"
+
+        # Create a legacy service-account-token Secret — populated by the token
+        # controller and never expires, unlike projected tokens (24 h TTL).
+        microk8s kubectl apply -f - <<EOF
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ${secret_name}
+        namespace: ${namespace}
+        annotations:
+          kubernetes.io/service-account.name: calico-cni-plugin
+      type: kubernetes.io/service-account-token
+      EOF
+
+        # Wait for the controller to populate the token field.
+        while [ "${attempt}" -le 30 ]; do
+          if microk8s kubectl get secret "${secret_name}" -n "${namespace}" \
+              -o jsonpath="{.data.token}" 2>/dev/null | grep -q .; then
+            break
+          fi
+          sleep 2
+          attempt=$((attempt + 1))
+        done
+
+        local token
+        token="$(microk8s kubectl get secret "${secret_name}" -n "${namespace}" \
+          -o jsonpath="{.data.token}" | base64 -d)"
+
+        if [ -z "${token}" ]; then
+          log "failed to retrieve calico-cni-plugin token; leaving existing kubeconfig"
+          return 1
+        fi
+
+        python3 - <<PYEOF
+      import yaml
+      with open("${calico_kubeconfig}") as f:
+          cfg = yaml.safe_load(f)
+      cfg["users"][0]["user"]["token"] = "${token}"
+      with open("${calico_kubeconfig}", "w") as f:
+          yaml.dump(cfg, f)
+      PYEOF
+        log "calico CNI kubeconfig patched — token never expires"
+      }
+
       seed_eso_credentials() {
         local client_id client_secret
         client_id="$(grep '^INFISICAL_CLIENT_ID=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
@@ -402,6 +458,7 @@ write_files:
         write_secret_payload
         install_k8s
         configure_cluster
+        patch_calico_cni_token
         role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}" 2>/dev/null || true)"
         if [ "${role}" = "bootstrap" ]; then
           seed_eso_credentials
