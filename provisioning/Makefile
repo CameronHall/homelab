@@ -7,7 +7,7 @@ TAILSCALE_CONFIG := tailscale-config/serve.json
 BOOTSTRAP_IMAGE := bootstrap-test.qcow2
 DOCKER_COMPOSE := docker compose -f docker-compose.yml --env-file $(ENV_FILE)
 
-.PHONY: init start test vm clean stop reset
+.PHONY: init start restart test vm clean stop reset
 
 init:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
@@ -28,6 +28,10 @@ $(TAILSCALE_CONFIG): $(TAILSCALE_TEMPLATE) $(ENV_FILE)
 
 start: init $(TAILSCALE_CONFIG)
 	@$(DOCKER_COMPOSE) up -d
+
+# ts-secret-api and secret-api share a network namespace; both must restart together
+restart: init $(TAILSCALE_CONFIG)
+	@$(DOCKER_COMPOSE) restart ts-secret-api secret-api
 
 test:
 	@uv run pytest
