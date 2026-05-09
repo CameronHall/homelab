@@ -22,10 +22,7 @@ class Settings(BaseSettings):
     secret_api_url: str = Field(alias="SECRET_API_URL")
     cluster_bootstrap_api_url: str = Field(alias="CLUSTER_BOOTSTRAP_API_URL")
     microk8s_cluster_name: str = Field(default="homelab", alias="MICROK8S_CLUSTER_NAME")
-    argocd_install_manifest_url: str = Field(
-        default="https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml",
-        alias="ARGOCD_INSTALL_MANIFEST_URL",
-    )
+    argocd_chart_version: str = Field(default="7.*", alias="ARGOCD_CHART_VERSION")
     homelab_repo_url: str = Field(
         default="https://github.com/CameronHall/homelab",
         alias="HOMELAB_REPO_URL",

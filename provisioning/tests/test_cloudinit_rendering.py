@@ -53,6 +53,7 @@ def _make_cloudinit_service(monkeypatch, **env_overrides):
         "UBUNTU_PRO_TOKEN": "pro-token",
         "HOMELAB_REPO_URL": "https://github.com/CameronHall/homelab",
         "HOMELAB_REPO_REVISION": "master",
+        "ARGOCD_CHART_VERSION": "7.*",
     }
     for key, val in {**defaults, **env_overrides}.items():
         monkeypatch.setenv(key, val)
@@ -105,8 +106,8 @@ def test_bootstrap_script_survives_yaml_block_scalar_parsing(monkeypatch):
 
     # The full install_argocd function must survive YAML block-scalar parsing.
     assert "install_argocd()" in bootstrap_sh, "install_argocd function missing from parsed bootstrap.sh"
-    assert 'microk8s kubectl apply -n argocd --server-side --force-conflicts -f' in bootstrap_sh
-    assert "microk8s kubectl wait deployment argocd-server" in bootstrap_sh
+    assert 'microk8s helm3 upgrade --install argocd argo/argo-cd' in bootstrap_sh
+    assert 'microk8s helm3 repo add argo' in bootstrap_sh
 
     # The Application YAML heredoc content must be present after YAML parsing.
     # These lines would be absent if the block scalar was terminated early.
