@@ -1,0 +1,59 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: calico-cni-token-refresh
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: calico-cni-token-refresh
+  namespace: kube-system
+rules:
+  - apiGroups: ["apps"]
+    resources: ["daemonsets"]
+    resourceNames: ["calico-node"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: calico-cni-token-refresh
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: calico-cni-token-refresh
+    namespace: kube-system
+roleRef:
+  kind: Role
+  name: calico-cni-token-refresh
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: calico-cni-token-refresh
+  namespace: kube-system
+spec:
+  # Every 12 h — well within the 24 h projected token TTL written by install-cni.
+  schedule: "0 */12 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: calico-cni-token-refresh
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: bitnami/kubectl:latest
+              command:
+                - kubectl
+                - rollout
+                - restart
+                - daemonset/calico-node
+                - -n
+                - kube-system

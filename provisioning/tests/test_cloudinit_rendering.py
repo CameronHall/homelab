@@ -103,16 +103,6 @@ def test_bootstrap_script_survives_yaml_block_scalar_parsing(monkeypatch):
     write_files = {entry["path"]: entry["content"] for entry in doc.get("write_files", [])}
     bootstrap_sh = write_files.get("/usr/local/bin/bootstrap.sh", "")
 
-    # patch_calico_cni_token must survive YAML parsing with both heredocs intact.
-    assert "patch_calico_cni_token()" in bootstrap_sh, "patch_calico_cni_token function missing from parsed bootstrap.sh"
-    assert "kubernetes.io/service-account-token" in bootstrap_sh, (
-        "calico Secret manifest missing — EOF heredoc may have been truncated"
-    )
-    assert "calico-cni-plugin-token" in bootstrap_sh
-    assert "yaml.safe_load" in bootstrap_sh, (
-        "python3 PYEOF block missing — PYEOF heredoc may have been truncated"
-    )
-
     # The full install_argocd function must survive YAML block-scalar parsing.
     assert "install_argocd()" in bootstrap_sh, "install_argocd function missing from parsed bootstrap.sh"
     assert 'microk8s kubectl apply -n argocd --server-side --force-conflicts -f' in bootstrap_sh
