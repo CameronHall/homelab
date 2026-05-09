@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://github.com/cameronhall/homelab.git
     targetRevision: master
-    path: apps
+    path: kube/apps
     directory:
       recurse: true
   destination:
