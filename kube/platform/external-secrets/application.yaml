@@ -14,7 +14,7 @@ spec:
     helm:
       releaseName: external-secrets
       valuesObject:
-        installCRDs: false
+        installCRDs: true
   ignoreDifferences:
     - group: apps
       kind: Deployment
