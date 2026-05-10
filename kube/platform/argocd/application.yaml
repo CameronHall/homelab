@@ -38,9 +38,23 @@ spec:
           params:
             server.insecure: true
           cm:
+            url: $argocd-google-sso:hostname
             resource.customizations.ignoreDifferences.apps_Deployment: |
               jsonPointers:
               - /status/terminatingReplicas
+            dex.config: |
+              connectors:
+                - type: google
+                  id: google
+                  name: Google
+                  config:
+                    clientID: $argocd-google-sso:clientId
+                    clientSecret: $argocd-google-sso:clientSecret
+                    redirectURI: $argocd-google-sso:hostname/api/dex/callback
+          rbac:
+            policy.default: role:readonly
+            policy.csv: |
+              g, me@chall.id.au, role:admin
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
