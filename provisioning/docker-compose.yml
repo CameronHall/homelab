@@ -34,11 +34,13 @@ services:
     command: /bin/sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${SECRET_API_PORT:-8081}"
     environment:
       PYTHONPATH: /workspace
-    network_mode: "service:ts-secret-api"
+    networks:
+      - secret-api-net
     volumes:
       - ./shared:/workspace/shared
       - ./secret-api:/workspace/secret-api
       - ./data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8081/healthz"]
       interval: 10s
@@ -58,7 +60,12 @@ services:
       TS_CLIENT_ID: ${TS_API_CLIENT_ID}
       TS_CLIENT_SECRET: ${TS_API_CLIENT_SECRET}
       TS_SERVE_CONFIG: /config/serve.json
+    networks:
+      - secret-api-net
     volumes:
       - ./data/tailscale-secret-api:/var/lib/tailscale
       - ./tailscale-config:/config
     restart: unless-stopped
+
+networks:
+  secret-api-net:
