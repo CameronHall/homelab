@@ -13,7 +13,6 @@ spec:
     path: kube/platform
     directory:
       recurse: true
-      exclude: '{**/config/**}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
