@@ -29,14 +29,13 @@ spec:
         configs:
           params:
             server.insecure: true
+          cm:
+            resource.customizations.ignoreDifferences.apps_Deployment: |
+              jsonPointers:
+              - /status/terminatingReplicas
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      jsonPointers:
-        - /status/terminatingReplicas
   syncPolicy:
     automated:
       prune: true

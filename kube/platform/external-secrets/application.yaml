@@ -15,11 +15,6 @@ spec:
       releaseName: external-secrets
       valuesObject:
         installCRDs: true
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      jsonPointers:
-        - /status/terminatingReplicas
   destination:
     server: https://kubernetes.default.svc
     namespace: external-secrets
