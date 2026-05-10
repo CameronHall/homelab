@@ -38,7 +38,6 @@ spec:
           params:
             server.insecure: true
           cm:
-            url: $argocd-google-sso:hostname
             resource.customizations.ignoreDifferences.apps_Deployment: |
               jsonPointers:
               - /status/terminatingReplicas
