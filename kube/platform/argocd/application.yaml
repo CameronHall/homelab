@@ -28,6 +28,12 @@ spec:
           enabled: true
         redis-ha:
           enabled: false
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: tailscale
+            hostname: argocd-vm
+            tls: true
         configs:
           params:
             server.insecure: true
