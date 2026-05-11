@@ -15,9 +15,14 @@ spec:
       releaseName: argocd
       valuesObject:
         global:
-          domain: argocd.local
+          domain: argocd.seagull-monster.ts.net
         server:
           replicas: 1
+          ingress:
+            enabled: true
+            ingressClassName: tailscale
+            hostname: argocd
+            tls: true
         repoServer:
           replicas: 1
         applicationSet:
@@ -28,12 +33,6 @@ spec:
           enabled: true
         redis-ha:
           enabled: false
-        server:
-          ingress:
-            enabled: true
-            ingressClassName: tailscale
-            hostname: argocd-vm
-            tls: true
         configs:
           params:
             server.insecure: true
@@ -49,7 +48,7 @@ spec:
                   config:
                     clientID: $argocd-google-sso:clientId
                     clientSecret: $argocd-google-sso:clientSecret
-                    redirectURI: $argocd-google-sso:hostname/api/dex/callback
+                    redirectURI: https://argocd.seagull-monster.ts.net/api/dex/callback
           rbac:
             policy.default: role:readonly
             policy.csv: |
