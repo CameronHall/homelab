@@ -21,7 +21,7 @@ spec:
           ingress:
             enabled: true
             ingressClassName: tailscale
-            hostname: argocd-vm
+            hostname: argocd
             tls: true
         repoServer:
           replicas: 1
