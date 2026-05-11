@@ -6,7 +6,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "40"
 spec:
-  project: homelab
+  project: platform
   source:
     repoURL: https://pkgs.tailscale.com/helmcharts
     chart: tailscale-operator
