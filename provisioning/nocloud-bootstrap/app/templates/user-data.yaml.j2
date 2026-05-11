@@ -2,8 +2,56 @@
 autoinstall:
   version: 1
   storage:
-    layout:
-      name: direct
+    config:
+      - type: disk
+        id: disk0
+        match:
+          size: largest
+        wipe: superblock
+        ptable: gpt
+        preserve: false
+        grub_device: true
+      - type: partition
+        id: efi-part
+        device: disk0
+        size: 1G
+        flag: boot
+        grub_device: true
+      - type: partition
+        id: root-part
+        device: disk0
+        size: 50G
+      - type: partition
+        id: snap-part
+        device: disk0
+        size: -1
+      - type: format
+        id: efi-fmt
+        volume: efi-part
+        fstype: fat32
+        label: EFI
+      - type: format
+        id: root-fmt
+        volume: root-part
+        fstype: ext4
+        label: root
+      - type: format
+        id: snap-fmt
+        volume: snap-part
+        fstype: ext4
+        label: data
+      - type: mount
+        id: efi-mount
+        device: efi-fmt
+        path: /boot/efi
+      - type: mount
+        id: root-mount
+        device: root-fmt
+        path: /
+      - type: mount
+        id: snap-mount
+        device: snap-fmt
+        path: /var/snap
 hostname: {{ hostname }}
 users:
   - name: ubuntu
