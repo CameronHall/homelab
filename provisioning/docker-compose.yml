@@ -50,7 +50,6 @@ services:
 
   ts-secret-api:
     image: tailscale/tailscale:latest
-    hostname: ${TAILSCALE_SECRET_API_HOSTNAME:-secret-api}
     env_file:
       - .env
     environment:
@@ -60,6 +59,7 @@ services:
       TS_CLIENT_ID: ${TS_API_CLIENT_ID}
       TS_CLIENT_SECRET: ${TS_API_CLIENT_SECRET}
       TS_SERVE_CONFIG: /config/serve.json
+      TS_HOSTNAME: ${TAILSCALE_SECRET_API_HOSTNAME:-secret-api}
     networks:
       - secret-api-net
     volumes:

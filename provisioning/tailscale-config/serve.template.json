@@ -8,7 +8,7 @@
       "secret-api.${TAILNET_NAME}:443": {
         "Handlers": {
           "/": {
-            "Proxy": "http://127.0.0.1:8081",
+            "Proxy": "http://secret-api:8081",
             "AcceptAppCaps": [
               "homelab.local/cap/bootstrap"
             ]
