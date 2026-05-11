@@ -1,4 +1,9 @@
 #cloud-config
+autoinstall:
+  version: 1
+  storage:
+    layout:
+      name: direct
 hostname: {{ hostname }}
 users:
   - name: ubuntu
