@@ -15,13 +15,13 @@ spec:
       releaseName: argocd
       valuesObject:
         global:
-          domain: argocd.seagull-monster.ts.net
+          domain: argocd-vm.seagull-monster.ts.net
         server:
           replicas: 1
           ingress:
             enabled: true
             ingressClassName: tailscale
-            hostname: argocd
+            hostname: argocd-vm
             tls: true
         repoServer:
           replicas: 1
@@ -48,7 +48,7 @@ spec:
                   config:
                     clientID: $argocd-google-sso:clientId
                     clientSecret: $argocd-google-sso:clientSecret
-                    redirectURI: https://argocd.seagull-monster.ts.net/api/dex/callback
+                    redirectURI: https://argocd-vm.seagull-monster.ts.net/api/dex/callback
           rbac:
             policy.default: role:readonly
             policy.csv: |
