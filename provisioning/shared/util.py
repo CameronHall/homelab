@@ -74,6 +74,63 @@ def generate_token(length: int = 32) -> str:
     return secrets.token_urlsafe(length)[:length]
 
 
+_WORD_LIST = [
+    "amber", "anchor", "anvil", "apple", "arch", "arrow", "atlas", "autumn",
+    "axle", "azure", "badge", "basin", "beam", "birch", "blade", "blaze",
+    "bloom", "brace", "brake", "branch", "brave", "briar", "brick", "bridge",
+    "brook", "brush", "burst", "cable", "cairn", "canoe", "cargo", "cedar",
+    "chain", "chalk", "chart", "chase", "chest", "cider", "cinch", "circa",
+    "civic", "clamp", "clasp", "cliff", "cloak", "cloud", "clove", "coast",
+    "comet", "coral", "crank", "creek", "crest", "crisp", "cross", "crown",
+    "crush", "crust", "curve", "cycle", "delta", "depot", "depth", "derby",
+    "digit", "diode", "disco", "ditch", "dixie", "dolmen", "drake", "drift",
+    "drive", "drone", "drops", "dross", "dunes", "eagle", "earth", "edge",
+    "elder", "emery", "ember", "epoch", "equip", "erode", "event", "exert",
+    "fable", "fault", "feast", "fence", "ferry", "field", "fjord", "flame",
+    "flask", "flint", "flood", "flora", "flume", "flute", "focal", "forge",
+    "forte", "forum", "frame", "frank", "frond", "front", "frost", "fulcrum",
+    "gamma", "gauge", "ghost", "glade", "glare", "glaze", "gleam", "globe",
+    "gloom", "gloss", "gorge", "grace", "grade", "grain", "grand", "grant",
+    "graph", "grasp", "gravel", "grove", "graze", "great", "green", "grid",
+    "grind", "groan", "grout", "growl", "guild", "guise", "gulch", "haven",
+    "hawk", "hazel", "hedge", "helix", "helm", "heron", "hinge", "holly",
+    "horse", "hound", "hover", "hunch", "ingot", "inlet", "inset", "ionic",
+    "ivory", "jaunt", "joust", "karst", "kelp", "kinetic", "knoll", "kraken",
+    "lance", "larch", "laser", "latch", "lava", "layer", "ledge", "lemon",
+    "level", "light", "limit", "linen", "links", "locket", "lodge", "lofty",
+    "logic", "lumen", "lunar", "lustre", "magma", "maple", "march", "marsh",
+    "mast", "match", "mauve", "meander", "merge", "merit", "metal", "metro",
+    "might", "mirth", "mocha", "model", "moose", "morse", "mossy", "mount",
+    "mural", "musket", "nadir", "nexus", "nickel", "noble", "notch", "nymph",
+    "oaken", "octet", "olive", "onyx", "optic", "orbit", "order", "outer",
+    "oxide", "ozone", "pagoda", "parch", "parse", "patch", "pause", "petal",
+    "pilot", "pinch", "pixel", "pivot", "plank", "plaza", "plume", "plunge",
+    "polar", "porch", "prism", "probe", "proxy", "pulse", "quartz", "quest",
+    "queue", "quick", "quota", "rabbet", "radial", "radio", "rally", "ramp",
+    "rapid", "reach", "realm", "resin", "ridge", "rivet", "robin", "rocky",
+    "roman", "roost", "rotor", "rouge", "rover", "rowel", "rudder", "runic",
+    "sabre", "saddle", "salon", "salve", "sandy", "scarp", "screw", "seam",
+    "serge", "servo", "shade", "shaft", "shale", "shelf", "shell", "shift",
+    "shore", "siege", "sigma", "skiff", "slate", "sleek", "sleet", "slick",
+    "slope", "sloth", "smart", "smoke", "solar", "solid", "solve", "sonic",
+    "spool", "spore", "spray", "stack", "stave", "steam", "steel", "steep",
+    "steer", "stern", "stone", "stork", "storm", "stout", "strap", "stray",
+    "stream", "strut", "surge", "swamp", "swath", "sweep", "swift", "synod",
+    "talon", "taupe", "thorn", "thyme", "tidal", "tilde", "timber", "titan",
+    "token", "topaz", "torch", "tower", "track", "trail", "train", "trait",
+    "tramp", "trench", "trial", "trout", "trove", "truce", "trunk", "trust",
+    "tudor", "tuned", "tundra", "tunic", "turbo", "ultra", "umbra", "unity",
+    "uplift", "valve", "vault", "venom", "verge", "viaduct", "vigor", "viola",
+    "viral", "visor", "vista", "vortex", "wagon", "waltz", "watch", "water",
+    "wedge", "wheat", "wheel", "whirl", "winds", "winch", "wraith", "wrench",
+    "yield", "yonder", "zenith", "zonal",
+]
+
+
+def generate_word_token(num_words: int = 4) -> str:
+    return "-".join(secrets.choice(_WORD_LIST) for _ in range(num_words))
+
+
 def _json_default(value: Any) -> Any:
     if isinstance(value, datetime):
         return isoformat_z(value)
