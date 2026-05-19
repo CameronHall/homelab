@@ -50,6 +50,7 @@ services:
 
   ts-secret-api:
     image: tailscale/tailscale:latest
+    entrypoint: ["/bin/sh", "/config/entrypoint.sh"]
     env_file:
       - .env
     environment:
