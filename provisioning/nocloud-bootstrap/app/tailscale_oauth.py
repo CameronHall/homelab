@@ -22,7 +22,7 @@ class TailscaleOAuthError(RuntimeError):
 class TailscaleOAuthClient:
     def __init__(self, settings: Settings, http_client: httpx.Client | None = None) -> None:
         self.settings = settings
-        self._http_client = http_client or httpx.Client(timeout=settings.http_timeout_seconds)
+        self._http_client = http_client or httpx.Client(timeout=settings.http_timeout_seconds, trust_env=False)
 
     def create_bootstrap_auth_key(self, node_id: str, expiry_minutes: int) -> AuthKeyResult:
         access_token = self._fetch_access_token()

@@ -31,7 +31,7 @@ class TailnetDevice:
 class TailscaleControlClient:
     def __init__(self, settings: Settings, http_client: httpx.Client | None = None) -> None:
         self.settings = settings
-        self._http_client = http_client or httpx.Client(timeout=settings.tailscale_http_timeout_seconds)
+        self._http_client = http_client or httpx.Client(timeout=settings.tailscale_http_timeout_seconds, trust_env=False)
 
     def list_devices(self) -> list[TailnetDevice]:
         access_token = self._fetch_access_token()
