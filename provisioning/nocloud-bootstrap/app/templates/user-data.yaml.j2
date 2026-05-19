@@ -2,447 +2,508 @@
 autoinstall:
   version: 1
   storage:
-    layout:
-      name: direct
-hostname: {{ hostname }}
-users:
-  - name: ubuntu
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    groups: sudo
-    shell: /bin/bash
-{% if ssh_import_id %}
-    ssh_import_id:
-      - {{ ssh_import_id }}
+    swap:
+      size: 0
+    config:
+      - type: disk
+        id: disk0
+        match:
+          size: largest
+        wipe: superblock
+        ptable: gpt
+        preserve: false
+        grub_device: true
+      - type: partition
+        id: efi-part
+        device: disk0
+        size: 1G
+        flag: boot
+        grub_device: true
+      - type: partition
+        id: lvm-part
+        device: disk0
+        size: -1
+      - type: lvm_volgroup
+        id: ubuntu-vg
+        name: ubuntu-vg
+        devices:
+          - lvm-part
+      - type: lvm_partition
+        id: ubuntu-lv
+        name: ubuntu-lv
+        volgroup: ubuntu-vg
+        size: 50G
+      - type: format
+        id: efi-fmt
+        volume: efi-part
+        fstype: fat32
+        label: EFI
+      - type: format
+        id: root-fmt
+        volume: ubuntu-lv
+        fstype: ext4
+        label: root
+      - type: mount
+        id: efi-mount
+        device: efi-fmt
+        path: /boot/efi
+      - type: mount
+        id: root-mount
+        device: root-fmt
+        path: /
+  late-commands:
+    - lvcreate -l 95%FREE -n snapdata ubuntu-vg
+    - mkfs.xfs /dev/ubuntu-vg/snapdata
+    - echo '/dev/ubuntu-vg/snapdata /var/snap xfs defaults 0 0' >> /target/etc/fstab
+{% if ubuntu_pro_token and ubuntu_pro_token != '-' %}
+  ubuntu-pro:
+    token: {{ ubuntu_pro_token }}
 {% endif %}
-manage_etc_hosts: true
-package_update: true
-package_upgrade: true
-packages:
-  - ca-certificates
-  - curl
-  - jq
-  - ssh-import-id
-  - fwupd
-  - git
-  - snapd
-  - unattended-upgrades
-  - gnupg
-write_files:
-  - path: /usr/local/bin/bootstrap.sh
-    owner: root:root
-    permissions: "0700"
-    content: |
-      #!/usr/bin/env bash
-      set -euo pipefail
+  updates: all
+  packages:
+    - ca-certificates
+    - curl
+    - jq
+    - ssh-import-id
+    - fwupd
+    - git
+    - snapd
+    - unattended-upgrades
+    - gnupg
+  snaps:
+    - name: microk8s
+      channel: latest/stable
+      classic: true
+  ssh:
+    install-server: true
+    allow-pw: false
+  user-data:
+    hostname: {{ hostname }}
+    users:
+      - name: ubuntu
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        groups: sudo
+        shell: /bin/bash
+{% if ssh_import_id %}
+        ssh_import_id:
+          - {{ ssh_import_id }}
+{% endif %}
+{% if debug_password %}
+      - name: debug
+        sudo: ALL=(ALL) NOPASSWD:ALL
+        groups: sudo
+        shell: /bin/bash
+        lock_passwd: false
+{% endif %}
+{% if debug_password %}
+    ssh_pwauth: true
+    chpasswd:
+      expire: false
+      users:
+        - name: debug
+          password: {{ debug_password }}
+          type: text
+{% endif %}
+    manage_etc_hosts: true
+    write_files:
+      - path: /etc/systemd/journald.conf.d/max-size.conf
+        owner: root:root
+        permissions: "0644"
+        content: |
+          [Journal]
+          SystemMaxUse=2G
+      - path: /usr/local/bin/bootstrap.sh
+        owner: root:root
+        permissions: "0700"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-      LOG_DIR="/var/log/bootstrap"
-      LOG_FILE="${LOG_DIR}/bootstrap.log"
-      STATE_DIR="/var/lib/bootstrap"
-      SENTINEL="${STATE_DIR}/complete"
-      CLUSTER_SENTINEL="${STATE_DIR}/cluster-configured"
-      REQUEST_FILE="${STATE_DIR}/request.json"
-      RESPONSE_FILE="${STATE_DIR}/response.json"
-      CLUSTER_REQUEST_FILE="${STATE_DIR}/cluster-request.json"
-      BOOTSTRAP_JSON="/run/bootstrap/cluster.json"
-      SECRETS_FILE="/etc/bootstrap/secrets.env"
-      CONFIG_FILE="/etc/bootstrap/config.json"
-      STATUS_FILE="${STATE_DIR}/tailscale-status.json"
-      SECRET_API_URL="{{ secret_api_url }}"
-      CLUSTER_BOOTSTRAP_API_URL="{{ cluster_bootstrap_api_url }}"
-      CLUSTER_NAME="{{ microk8s_cluster_name }}"
-      UBUNTU_PRO_TOKEN="{{ ubuntu_pro_token }}"
-      NODE_ID="{{ node_id }}"
-      HOSTNAME="{{ hostname }}"
-      INSTANCE_ID="{{ instance_id }}"
-      MAX_ATTEMPTS=40
+          LOG_DIR="/var/log/bootstrap"
+          LOG_FILE="${LOG_DIR}/bootstrap.log"
+          STATE_DIR="/var/lib/bootstrap"
+          SENTINEL="${STATE_DIR}/complete"
+          CLUSTER_SENTINEL="${STATE_DIR}/cluster-configured"
+          REQUEST_FILE="${STATE_DIR}/request.json"
+          RESPONSE_FILE="${STATE_DIR}/response.json"
+          CLUSTER_REQUEST_FILE="${STATE_DIR}/cluster-request.json"
+          BOOTSTRAP_JSON="/run/bootstrap/cluster.json"
+          SECRETS_FILE="/etc/bootstrap/secrets.env"
+          CONFIG_FILE="/etc/bootstrap/config.json"
+          STATUS_FILE="${STATE_DIR}/tailscale-status.json"
+          SECRET_API_URL="{{ secret_api_url }}"
+          CLUSTER_BOOTSTRAP_API_URL="{{ cluster_bootstrap_api_url }}"
+          CLUSTER_NAME="{{ microk8s_cluster_name }}"
+          NODE_ID="{{ node_id }}"
+          HOSTNAME="{{ hostname }}"
+          INSTANCE_ID="{{ instance_id }}"
+          MAX_ATTEMPTS=40
 
-      mkdir -p "${LOG_DIR}" "${STATE_DIR}" /etc/bootstrap /run/bootstrap
-      chmod 0700 "${STATE_DIR}" /etc/bootstrap /run/bootstrap
+          mkdir -p "${LOG_DIR}" "${STATE_DIR}" /etc/bootstrap /run/bootstrap
+          chmod 0700 "${STATE_DIR}" /etc/bootstrap /run/bootstrap
 
-      log() {
-        printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${LOG_FILE}"
-      }
+          log() {
+            printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "${LOG_FILE}"
+          }
 
-      write_if_changed() {
-        local destination="$1"
-        local tmp_file
-        tmp_file="$(mktemp)"
-        cat > "${tmp_file}"
-        if [ -f "${destination}" ] && cmp -s "${tmp_file}" "${destination}"; then
-          rm -f "${tmp_file}"
-          chmod 0600 "${destination}"
-          chown root:root "${destination}"
-          return 0
-        fi
-        install -D -m 0600 -o root -g root "${tmp_file}" "${destination}"
-        rm -f "${tmp_file}"
-      }
-
-      wait_for_network() {
-        local attempt=1
-        while [ "${attempt}" -le 10 ]; do
-          if ip route show default >/dev/null 2>&1; then
-            return 0
-          fi
-          log "waiting for default route"
-          sleep "${attempt}"
-          attempt=$((attempt + 1))
-        done
-        log "network did not become ready in time"
-        return 1
-      }
-
-      install_tailscale() {
-        if command -v tailscale >/dev/null 2>&1; then
-          return 0
-        fi
-        log "installing tailscale"
-        curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
-      }
-
-      join_tailnet() {
-        if [ -f "${STATE_DIR}/tailscale-up.ok" ]; then
-          return 0
-        fi
-        log "joining tailnet with bootstrap tag"
-        tailscale up \
-          --authkey={{ tailscale_auth_key }} \
-          --hostname="${HOSTNAME}" \
-          --advertise-tags={{ advertise_tags_csv }} \
-          --accept-dns=true \
-          --accept-routes=false >/dev/null
-        touch "${STATE_DIR}/tailscale-up.ok"
-      }
-
-      wait_for_tailscale() {
-        local attempt=1
-        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
-          if tailscale status --json > "${STATUS_FILE}" 2>/dev/null; then
-            if jq -e '.BackendState == "Running" and .Self.Online == true and (.Self.TailscaleIPs | length) > 0' "${STATUS_FILE}" >/dev/null 2>&1; then
-              log "tailscale connectivity available"
+          write_if_changed() {
+            local destination="$1"
+            local tmp_file
+            tmp_file="$(mktemp)"
+            cat > "${tmp_file}"
+            if [ -f "${destination}" ] && cmp -s "${tmp_file}" "${destination}"; then
+              rm -f "${tmp_file}"
+              chmod 0600 "${destination}"
+              chown root:root "${destination}"
               return 0
             fi
-            log "tailscale state=$(jq -r '.BackendState // \"unknown\"' "${STATUS_FILE}") waiting for approval or connectivity"
-          else
-            log "tailscale status not yet available"
-          fi
-          sleep "${attempt}"
-          attempt=$((attempt + 1))
-        done
-        log "tailscale connectivity not ready before timeout"
-        return 1
-      }
+            install -D -m 0600 -o root -g root "${tmp_file}" "${destination}"
+            rm -f "${tmp_file}"
+          }
 
-      fetch_secrets() {
-        local attempt=1
-        local backoff=2
-        local http_code
-
-        cat > "${REQUEST_FILE}" <<EOF
-      {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}"}
-      EOF
-
-        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
-          http_code="$(
-            curl -sS \
-              --connect-timeout 5 \
-              --max-time 20 \
-              --output "${RESPONSE_FILE}" \
-              --write-out "%{http_code}" \
-              --header "Content-Type: application/json" \
-              --data-binary @"${REQUEST_FILE}" \
-              "${SECRET_API_URL}" || true
-          )"
-
-          case "${http_code}" in
-            200)
-              log "secret payload retrieved"
-              return 0
-              ;;
-            403|409|425|502|503|504)
-              log "secret API not ready yet status=${http_code}; retrying"
-              ;;
-            *)
-              log "secret API returned fatal status=${http_code}"
-              return 1
-              ;;
-          esac
-
-          sleep "${backoff}"
-          if [ "${backoff}" -lt 60 ]; then
-            backoff=$((backoff * 2))
-          fi
-          attempt=$((attempt + 1))
-        done
-
-        log "secret API did not become ready within retry bounds"
-        return 1
-      }
-
-      write_secret_payload() {
-        jq -r '.env // {} | to_entries[] | "\(.key)=\(.value | @sh)"' "${RESPONSE_FILE}" | write_if_changed "${SECRETS_FILE}"
-
-        if jq -e '.config != null' "${RESPONSE_FILE}" >/dev/null 2>&1; then
-          jq -c '.config' "${RESPONSE_FILE}" | write_if_changed "${CONFIG_FILE}"
-        fi
-
-        jq -c '.files[]?' "${RESPONSE_FILE}" | while IFS= read -r file_entry; do
-          file_path="$(printf '%s' "${file_entry}" | jq -r '.path')"
-          printf '%s' "${file_entry}" | jq -r '.content' | write_if_changed "${file_path}"
-        done
-      }
-
-      upgrade_firmware() {
-        fwupdmgr refresh --force || true
-        fwupdmgr get-updates || true
-        fwupdmgr update -y || true
-
-        dpkg-reconfigure -f noninteractive unattended-upgrades || true
-        apt-get -y dist-upgrade
-      }
-
-      configure_ubuntu_pro() {
-        if command -v pro >/dev/null 2>&1; then
-          pro attach ${UBUNTU_PRO_TOKEN} || true
-          pro enable livepatch || true
-        fi
-      }
-
-      disable_swap() {
-        swapoff -a || true
-        cp /etc/fstab /etc/fstab.bak
-        awk '$3 == "swap" {$0 = "#" $0} {print}' /etc/fstab.bak > /etc/fstab
-      }
-
-      install_k8s() {
-        if snap list microk8s >/dev/null 2>&1; then
-          snap refresh microk8s --channel=latest/stable || true
-        else
-          snap install microk8s --classic --channel=latest/stable
-        fi
-
-        usermod -aG microk8s ubuntu
-
-        microk8s status --wait-ready
-      }
-
-      discover_api_endpoint() {
-        local endpoint
-        endpoint="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')"
-        if [ -z "${endpoint}" ]; then
-          endpoint="${HOSTNAME}"
-        fi
-        printf '%s\n' "${endpoint}"
-      }
-
-      fetch_cluster_role() {
-        local attempt=1
-        local backoff=2
-        local http_code
-        local api_endpoint
-
-        api_endpoint="$(discover_api_endpoint)"
-
-        cat > "${CLUSTER_REQUEST_FILE}" <<EOF
-      {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}","cluster_name":"${CLUSTER_NAME}","api_endpoint":"${api_endpoint}"}
-      EOF
-
-        while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
-          http_code="$(
-            curl -sS \
-              --connect-timeout 5 \
-              --max-time 20 \
-              --output "${BOOTSTRAP_JSON}" \
-              --write-out "%{http_code}" \
-              --header "Content-Type: application/json" \
-              --data-binary @"${CLUSTER_REQUEST_FILE}" \
-              "${CLUSTER_BOOTSTRAP_API_URL}" || true
-          )"
-
-          case "${http_code}" in
-            200)
-              log "cluster bootstrap decision retrieved"
-              return 0
-              ;;
-            403|409|425|502|503|504)
-              log "cluster bootstrap API not ready yet status=${http_code}; retrying"
-              ;;
-            *)
-              log "cluster bootstrap API returned fatal status=${http_code}"
-              return 1
-              ;;
-          esac
-
-          sleep "${backoff}"
-          if [ "${backoff}" -lt 60 ]; then
-            backoff=$((backoff * 2))
-          fi
-          attempt=$((attempt + 1))
-        done
-
-        log "cluster bootstrap API did not become ready within retry bounds"
-        return 1
-      }
-
-      seed_eso_credentials() {
-        local client_id client_secret
-        client_id="$(grep '^INFISICAL_CLIENT_ID=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
-        client_secret="$(grep '^INFISICAL_CLIENT_SECRET=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
-
-        if [ -z "${client_id}" ] || [ -z "${client_secret}" ]; then
-          log "INFISICAL_CLIENT_ID or INFISICAL_CLIENT_SECRET not present in secrets payload; skipping ESO credential seeding"
-          return 0
-        fi
-
-        log "seeding ESO Infisical credentials into cluster"
-        microk8s kubectl create namespace external-secrets --dry-run=client -o yaml | microk8s kubectl apply -f -
-        microk8s kubectl create secret generic infisical-universal-auth \
-          --namespace external-secrets \
-          --from-literal=clientId="${client_id}" \
-          --from-literal=clientSecret="${client_secret}" \
-          --dry-run=client -o yaml | microk8s kubectl apply -f -
-        log "ESO credentials seeded"
-        rm -f "${SECRETS_FILE}"
-        log "secrets file wiped"
-      }
-
-      install_argocd() {
-        local argocd_sentinel="${STATE_DIR}/argocd-installed"
-        if [ -f "${argocd_sentinel}" ]; then
-          log "argocd already installed"
-          return 0
-        fi
-
-        log "creating argocd namespace"
-        microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
-
-        log "installing argocd via helm"
-        microk8s helm3 repo add argo https://argoproj.github.io/argo-helm || true
-        microk8s helm3 repo update
-        microk8s helm3 upgrade --install argocd argo/argo-cd \
-          --namespace argocd \
-          --version "{{ argocd_chart_version }}" \
-          --set 'configs.params.server\.insecure=true' \
-          --wait \
-          --timeout 5m
-
-        log "applying bootstrap application"
-        microk8s kubectl apply -f - <<EOF
-      apiVersion: argoproj.io/v1alpha1
-      kind: Application
-      metadata:
-        name: bootstrap
-        namespace: argocd
-      spec:
-        project: default
-        source:
-          repoURL: {{ homelab_repo_url }}
-          targetRevision: {{ homelab_repo_revision }}
-          path: kube/clusters/homelab
-          directory:
-            recurse: true
-        destination:
-          server: https://kubernetes.default.svc
-          namespace: argocd
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
-      EOF
-
-        touch "${argocd_sentinel}"
-        chmod 0600 "${argocd_sentinel}"
-        log "argocd installed and bootstrap application applied"
-      }
-
-      configure_cluster() {
-        local role
-        local join_command
-
-        if [ -f "${CLUSTER_SENTINEL}" ]; then
-          log "cluster bootstrap already completed"
-          return 0
-        fi
-
-        fetch_cluster_role
-        role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}")"
-
-        case "${role}" in
-          bootstrap)
-            log "node selected as bootstrap node for cluster ${CLUSTER_NAME}"
-            microk8s enable dns hostpath-storage helm3
-            ;;
-          join)
-            join_command="$(jq -r '.join_command // empty' "${BOOTSTRAP_JSON}")"
-            if [ -z "${join_command}" ]; then
-              log "cluster bootstrap response missing join_command"
-              return 1
-            fi
-            log "node selected to join cluster ${CLUSTER_NAME}"
-            eval "${join_command}"
-            ;;
-          *)
-            log "cluster bootstrap response had invalid role=${role}"
+          wait_for_network() {
+            local attempt=1
+            while [ "${attempt}" -le 10 ]; do
+              if ip route show default >/dev/null 2>&1; then
+                return 0
+              fi
+              log "waiting for default route"
+              sleep "${attempt}"
+              attempt=$((attempt + 1))
+            done
+            log "network did not become ready in time"
             return 1
-            ;;
-        esac
+          }
 
-        touch "${CLUSTER_SENTINEL}"
-        chmod 0600 "${CLUSTER_SENTINEL}"
-      }
+          install_tailscale() {
+            if command -v tailscale >/dev/null 2>&1; then
+              return 0
+            fi
+            log "installing tailscale"
+            curl -fsSL https://tailscale.com/install.sh | sh >/dev/null 2>&1
+          }
 
-      main() {
-        if [ -f "${SENTINEL}" ]; then
-          log "bootstrap already completed"
-          exit 0
-        fi
+          join_tailnet() {
+            if [ -f "${STATE_DIR}/tailscale-up.ok" ]; then
+              return 0
+            fi
+            log "joining tailnet with bootstrap tag"
+            tailscale up \
+              --authkey={{ tailscale_auth_key }} \
+              --hostname="${HOSTNAME}" \
+              --advertise-tags={{ advertise_tags_csv }} \
+              --accept-dns=true \
+              --accept-routes=false >/dev/null
+            touch "${STATE_DIR}/tailscale-up.ok"
+          }
 
-        wait_for_network
-        upgrade_firmware
-        disable_swap
-        configure_ubuntu_pro
-        install_tailscale
-        join_tailnet
-        wait_for_tailscale
-        fetch_secrets
-        write_secret_payload
-        install_k8s
-        configure_cluster
-        role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}" 2>/dev/null || true)"
-        if [ "${role}" = "bootstrap" ]; then
-          seed_eso_credentials
-          install_argocd
-        fi
-        touch "${SENTINEL}"
-        chmod 0600 "${SENTINEL}"
-        log "bootstrap complete. Restarting..."
-        reboot
-      }
+          wait_for_tailscale() {
+            local attempt=1
+            while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+              if tailscale status --json > "${STATUS_FILE}" 2>/dev/null; then
+                if jq -e '.BackendState == "Running" and .Self.Online == true and (.Self.TailscaleIPs | length) > 0' "${STATUS_FILE}" >/dev/null 2>&1; then
+                  log "tailscale connectivity available"
+                  return 0
+                fi
+                log "tailscale state=$(jq -r '.BackendState // \"unknown\"' "${STATUS_FILE}") waiting for approval or connectivity"
+              else
+                log "tailscale status not yet available"
+              fi
+              sleep "${attempt}"
+              attempt=$((attempt + 1))
+            done
+            log "tailscale connectivity not ready before timeout"
+            return 1
+          }
 
-      main
-  - path: /etc/systemd/system/bootstrap.service
-    owner: root:root
-    permissions: "0644"
-    content: |
-      [Unit]
-      Description=Bootstrap secret retrieval over Tailscale
-      Wants=network-online.target
-      After=network-online.target
+          fetch_secrets() {
+            local attempt=1
+            local backoff=2
+            local http_code
 
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/bin/bootstrap.sh
-      User=root
-      Group=root
-      RemainAfterExit=yes
-      Restart=on-failure
-      RestartSec=30s
+            cat > "${REQUEST_FILE}" <<EOF
+          {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}"}
+          EOF
 
-      [Install]
-      WantedBy=multi-user.target
-runcmd:
-  - [bash, -lc, "command -v tailscale >/dev/null 2>&1 || (curl -fsSL https://tailscale.com/install.sh | sh)"]
-  - [bash, -lc, "mkdir -p /var/log/bootstrap /var/lib/bootstrap /etc/bootstrap && chmod 0700 /var/lib/bootstrap /etc/bootstrap"]
-  - [bash, -lc, "tailscale up --authkey={{ tailscale_auth_key }} --hostname={{ hostname }} --advertise-tags={{ advertise_tags_csv }} --accept-dns=true --accept-routes=false || true"]
-  - [systemctl, daemon-reload]
-  - [systemctl, enable, --now, bootstrap.service]
+            while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+              http_code="$(
+                curl -sS \
+                  --connect-timeout 5 \
+                  --max-time 20 \
+                  --output "${RESPONSE_FILE}" \
+                  --write-out "%{http_code}" \
+                  --header "Content-Type: application/json" \
+                  --data-binary @"${REQUEST_FILE}" \
+                  "${SECRET_API_URL}" || true
+              )"
+
+              case "${http_code}" in
+                200)
+                  log "secret payload retrieved"
+                  return 0
+                  ;;
+                403|409|425|502|503|504)
+                  log "secret API not ready yet status=${http_code}; retrying"
+                  ;;
+                *)
+                  log "secret API returned fatal status=${http_code}"
+                  return 1
+                  ;;
+              esac
+
+              sleep "${backoff}"
+              if [ "${backoff}" -lt 60 ]; then
+                backoff=$((backoff * 2))
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            log "secret API did not become ready within retry bounds"
+            return 1
+          }
+
+          write_secret_payload() {
+            jq -r '.env // {} | to_entries[] | "\(.key)=\(.value | @sh)"' "${RESPONSE_FILE}" | write_if_changed "${SECRETS_FILE}"
+
+            if jq -e '.config != null' "${RESPONSE_FILE}" >/dev/null 2>&1; then
+              jq -c '.config' "${RESPONSE_FILE}" | write_if_changed "${CONFIG_FILE}"
+            fi
+
+            jq -c '.files[]?' "${RESPONSE_FILE}" | while IFS= read -r file_entry; do
+              file_path="$(printf '%s' "${file_entry}" | jq -r '.path')"
+              printf '%s' "${file_entry}" | jq -r '.content' | write_if_changed "${file_path}"
+            done
+          }
+
+          upgrade_firmware() {
+            fwupdmgr refresh --force || true
+            fwupdmgr get-updates || true
+            fwupdmgr update -y || true
+
+            dpkg-reconfigure -f noninteractive unattended-upgrades || true
+            apt-get -y dist-upgrade
+          }
+
+          install_k8s() {
+            usermod -aG microk8s ubuntu
+            microk8s status --wait-ready
+          }
+
+          discover_api_endpoint() {
+            local endpoint
+            endpoint="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')"
+            if [ -z "${endpoint}" ]; then
+              endpoint="${HOSTNAME}"
+            fi
+            printf '%s\n' "${endpoint}"
+          }
+
+          fetch_cluster_role() {
+            local attempt=1
+            local backoff=2
+            local http_code
+            local api_endpoint
+
+            api_endpoint="$(discover_api_endpoint)"
+
+            cat > "${CLUSTER_REQUEST_FILE}" <<EOF
+          {"node_id":"${NODE_ID}","hostname":"${HOSTNAME}","instance_id":"${INSTANCE_ID}","cluster_name":"${CLUSTER_NAME}","api_endpoint":"${api_endpoint}"}
+          EOF
+
+            while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+              http_code="$(
+                curl -sS \
+                  --connect-timeout 5 \
+                  --max-time 20 \
+                  --output "${BOOTSTRAP_JSON}" \
+                  --write-out "%{http_code}" \
+                  --header "Content-Type: application/json" \
+                  --data-binary @"${CLUSTER_REQUEST_FILE}" \
+                  "${CLUSTER_BOOTSTRAP_API_URL}" || true
+              )"
+
+              case "${http_code}" in
+                200)
+                  log "cluster bootstrap decision retrieved"
+                  return 0
+                  ;;
+                403|409|425|502|503|504)
+                  log "cluster bootstrap API not ready yet status=${http_code}; retrying"
+                  ;;
+                *)
+                  log "cluster bootstrap API returned fatal status=${http_code}"
+                  return 1
+                  ;;
+              esac
+
+              sleep "${backoff}"
+              if [ "${backoff}" -lt 60 ]; then
+                backoff=$((backoff * 2))
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            log "cluster bootstrap API did not become ready within retry bounds"
+            return 1
+          }
+
+          seed_eso_credentials() {
+            local client_id client_secret
+            client_id="$(grep '^INFISICAL_CLIENT_ID=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
+            client_secret="$(grep '^INFISICAL_CLIENT_SECRET=' "${SECRETS_FILE}" | cut -d= -f2- | tr -d "'" | tr -d '"')"
+
+            if [ -z "${client_id}" ] || [ -z "${client_secret}" ]; then
+              log "INFISICAL_CLIENT_ID or INFISICAL_CLIENT_SECRET not present in secrets payload; skipping ESO credential seeding"
+              return 0
+            fi
+
+            log "seeding ESO Infisical credentials into cluster"
+            microk8s kubectl create namespace external-secrets --dry-run=client -o yaml | microk8s kubectl apply -f -
+            microk8s kubectl create secret generic infisical-universal-auth \
+              --namespace external-secrets \
+              --from-literal=clientId="${client_id}" \
+              --from-literal=clientSecret="${client_secret}" \
+              --dry-run=client -o yaml | microk8s kubectl apply -f -
+            log "ESO credentials seeded"
+            rm -f "${SECRETS_FILE}"
+            log "secrets file wiped"
+          }
+
+          install_argocd() {
+            local argocd_sentinel="${STATE_DIR}/argocd-installed"
+            if [ -f "${argocd_sentinel}" ]; then
+              log "argocd already installed"
+              return 0
+            fi
+
+            log "creating argocd namespace"
+            microk8s kubectl create namespace argocd --dry-run=client -o yaml | microk8s kubectl apply -f -
+
+            log "installing argocd via helm"
+            microk8s helm3 repo add argo https://argoproj.github.io/argo-helm || true
+            microk8s helm3 repo update
+            microk8s helm3 upgrade --install argocd argo/argo-cd \
+              --namespace argocd \
+              --version "{{ argocd_chart_version }}" \
+              --set 'configs.params.server\.insecure=true' \
+              --wait \
+              --timeout 5m
+
+            log "applying bootstrap application"
+            microk8s kubectl apply -f - <<EOF
+          apiVersion: argoproj.io/v1alpha1
+          kind: Application
+          metadata:
+            name: bootstrap
+            namespace: argocd
+          spec:
+            project: default
+            source:
+              repoURL: {{ homelab_repo_url }}
+              targetRevision: {{ homelab_repo_revision }}
+              path: kube/clusters/homelab
+              directory:
+                recurse: true
+            destination:
+              server: https://kubernetes.default.svc
+              namespace: argocd
+            syncPolicy:
+              automated:
+                prune: true
+                selfHeal: true
+          EOF
+
+            touch "${argocd_sentinel}"
+            chmod 0600 "${argocd_sentinel}"
+            log "argocd installed and bootstrap application applied"
+          }
+
+          configure_cluster() {
+            local role
+            local join_command
+
+            if [ -f "${CLUSTER_SENTINEL}" ]; then
+              log "cluster bootstrap already completed"
+              return 0
+            fi
+
+            fetch_cluster_role
+            role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}")"
+
+            case "${role}" in
+              bootstrap)
+                log "node selected as bootstrap node for cluster ${CLUSTER_NAME}"
+                microk8s enable dns hostpath-storage helm3
+                ;;
+              join)
+                join_command="$(jq -r '.join_command // empty' "${BOOTSTRAP_JSON}")"
+                if [ -z "${join_command}" ]; then
+                  log "cluster bootstrap response missing join_command"
+                  return 1
+                fi
+                log "node selected to join cluster ${CLUSTER_NAME}"
+                eval "${join_command}"
+                ;;
+              *)
+                log "cluster bootstrap response had invalid role=${role}"
+                return 1
+                ;;
+            esac
+
+            touch "${CLUSTER_SENTINEL}"
+            chmod 0600 "${CLUSTER_SENTINEL}"
+          }
+
+          main() {
+            if [ -f "${SENTINEL}" ]; then
+              log "bootstrap already completed"
+              exit 0
+            fi
+
+            wait_for_network
+            upgrade_firmware
+            install_tailscale
+            join_tailnet
+            wait_for_tailscale
+            fetch_secrets
+            write_secret_payload
+            install_k8s
+            configure_cluster
+            role="$(jq -r '.role // empty' "${BOOTSTRAP_JSON}" 2>/dev/null || true)"
+            if [ "${role}" = "bootstrap" ]; then
+              seed_eso_credentials
+              install_argocd
+            fi
+            touch "${SENTINEL}"
+            chmod 0600 "${SENTINEL}"
+            log "bootstrap complete. Restarting..."
+            reboot
+          }
+
+          main
+      - path: /etc/systemd/system/bootstrap.service
+        owner: root:root
+        permissions: "0644"
+        content: |
+          [Unit]
+          Description=Bootstrap secret retrieval over Tailscale
+          Wants=network-online.target
+          After=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/bootstrap.sh
+          User=root
+          Group=root
+          RemainAfterExit=yes
+          Restart=on-failure
+          RestartSec=30s
+
+          [Install]
+          WantedBy=multi-user.target
+    runcmd:
+      - [bash, -lc, "command -v tailscale >/dev/null 2>&1 || (curl -fsSL https://tailscale.com/install.sh | sh)"]
+      - [bash, -lc, "mkdir -p /var/log/bootstrap /var/lib/bootstrap /etc/bootstrap && chmod 0700 /var/lib/bootstrap /etc/bootstrap"]
+      - [bash, -lc, "tailscale up --authkey={{ tailscale_auth_key }} --hostname={{ hostname }} --advertise-tags={{ advertise_tags_csv }} --accept-dns=true --accept-routes=false || true"]
+      - [systemctl, daemon-reload]
+      - [systemctl, enable, --now, bootstrap.service]

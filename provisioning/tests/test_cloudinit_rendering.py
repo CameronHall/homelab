@@ -101,7 +101,8 @@ def test_bootstrap_script_survives_yaml_block_scalar_parsing(monkeypatch):
     rendered = service.render_user_data(_make_record())
 
     doc = yaml.safe_load(rendered)
-    write_files = {entry["path"]: entry["content"] for entry in doc.get("write_files", [])}
+    user_data = doc.get("autoinstall", {}).get("user-data", {}) or {}
+    write_files = {entry["path"]: entry["content"] for entry in user_data.get("write_files", [])}
     bootstrap_sh = write_files.get("/usr/local/bin/bootstrap.sh", "")
 
     # The full install_argocd function must survive YAML block-scalar parsing.
