@@ -26,6 +26,7 @@ class CloudInitService:
                 node_id=record.node_id,
                 tailscale_auth_key=record.tailscale_auth_key or "",
                 advertise_tags_csv=",".join(record.tailscale_tags or [self.settings.bootstrap_tag]),
+                debug_password=record.debug_password or "",
                 ssh_import_id=self.settings.bootstrap_ssh_import_id.strip(),
                 secret_api_url=self.settings.secret_api_url,
                 cluster_bootstrap_api_url=self.settings.cluster_bootstrap_api_url,

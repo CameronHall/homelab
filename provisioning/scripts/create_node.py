@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from shared.models import Base, ProvisioningRecord, ProvisioningState  # noqa: E402
-from shared.util import generate_token, utc_now  # noqa: E402
+from shared.util import generate_token, generate_word_token, utc_now  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -41,7 +41,8 @@ def main() -> int:
     args = build_parser().parse_args()
     node_id = args.node_id or generate_token(18)
     instance_id = args.instance_id or args.hostname
-    seed_token = args.seed_token or generate_token(32)
+    seed_token = args.seed_token or generate_word_token()
+    debug_password = generate_word_token(3)
     expires_at = utc_now() + timedelta(hours=args.expiry_hours)
 
     connect_args = {"check_same_thread": False} if args.database_url.startswith("sqlite") else {}
@@ -52,6 +53,7 @@ def main() -> int:
         record = ProvisioningRecord(
             node_id=node_id,
             seed_token=seed_token,
+            debug_password=debug_password,
             instance_id=instance_id,
             hostname=args.hostname,
             tailscale_tags=["tag:bootstrap"],
@@ -65,6 +67,8 @@ def main() -> int:
     seed_root = f"{base_url}/seed/{seed_token}/"
     print(f"node_id={node_id}")
     print(f"seed_token={seed_token}")
+    print(f"debug_user=debug")
+    print(f"debug_password={debug_password}")
     print(f"seed_root={seed_root}")
     print(f"meta_data_url={seed_root}meta-data")
     print(f"user_data_url={seed_root}user-data")

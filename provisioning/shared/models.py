@@ -29,6 +29,7 @@ class ProvisioningRecord(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     node_id: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     seed_token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    debug_password: Mapped[str | None] = mapped_column(String(128), nullable=True)
     instance_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     hostname: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     tailscale_auth_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
