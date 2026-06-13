@@ -10,7 +10,7 @@ spec:
     - https://argoproj.github.io/argo-helm
     - https://charts.external-secrets.io
     - https://pkgs.tailscale.com/helmcharts
-    - oci://ghcr.io/paperclipinc/charts
+    - ghcr.io/paperclipinc/charts
   destinations:
     - namespace: argocd
       server: https://kubernetes.default.svc
