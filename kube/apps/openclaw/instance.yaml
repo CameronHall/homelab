@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openclaw
+---
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  envFrom:
+    - secretRef:
+        name: openclaw-api-keys
+  config:
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: "gemini/gemini-2.5-pro"
+      session:
+        scope: "per-sender"
+  storage:
+    persistence:
+      enabled: true
+      size: 10Gi
