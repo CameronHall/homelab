@@ -18,7 +18,7 @@ spec:
       agents:
         defaults:
           model:
-            primary: "gemini/gemini-2.5-pro"
+            primary: "google/gemini-2.5-pro"
       session:
         scope: "per-sender"
   storage:
