@@ -25,3 +25,12 @@ spec:
     persistence:
       enabled: true
       size: 10Gi
+  networking:
+    ingress:
+      enabled: true
+      className: tailscale
+      hosts:
+        - host: openclaw.seagull-monster.ts.net
+      tls:
+        - hosts:
+            - openclaw.seagull-monster.ts.net
