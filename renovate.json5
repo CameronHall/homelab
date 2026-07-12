@@ -1,0 +1,34 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  timezone: 'Australia/Sydney',
+
+  // No CI checks exist on this repo yet; without this Renovate would wait
+  // forever for a passing status check before automerging.
+  ignoreTests: true,
+
+  // ArgoCD Applications (Helm charts, including OCI repos like ghcr.io)
+  argocd: {
+    managerFilePatterns: ['/^kube/.+\\.ya?ml$/'],
+  },
+
+  // Container images referenced directly in Kubernetes manifests
+  kubernetes: {
+    managerFilePatterns: ['/^kube/.+\\.ya?ml$/'],
+  },
+
+  packageRules: [
+    // Automerge everything except major version bumps
+    {
+      matchUpdateTypes: ['minor', 'patch', 'pin', 'digest'],
+      automerge: true,
+    },
+    // Docker base-image minors (e.g. python 3.12 -> 3.13) can break builds;
+    // leave those as PRs for manual review.
+    {
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['minor'],
+      automerge: false,
+    },
+  ],
+}
